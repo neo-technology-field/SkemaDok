@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.neo4j</groupId>
+        <artifactId>skemadok-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>skemadok-collector</artifactId>
+    <packaging>jar</packaging>
+    <name>SkemaDok Collector</name>
+    <description>Thin executable for collecting and merging schema from Neo4j — no web server, no Spring</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.neo4j</groupId>
+            <artifactId>skemadok-core</artifactId>
+        </dependency>
+
+        <!-- Logging implementation — logback-classic via Spring Boot managed version -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>skemadok-collector-${project.version}</finalName>
+        <plugins>
+            <!-- spring-boot-maven-plugin:repackage produces a self-contained executable fat JAR.
+                 No Spring context is started at runtime — CollectorApplication uses plain main(). -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.neo4j.skemadok.CollectorApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

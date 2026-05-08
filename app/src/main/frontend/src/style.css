@@ -1,0 +1,323 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ============================================================
+   LIGHT — Neo4j teal primary on clean white/slate
+   ============================================================ */
+:root {
+  --bg-base:       #ffffff;
+  --bg-surface:    #f3f6f9;
+  --bg-elevated:   #e4e9ef;
+  --bg-hover:      #d5dce4;
+  --bg-active:     #b8c3ce;
+
+  --border:        #c2ccd6;
+  --border-strong: #7d8a96;
+  --border-focus:  #0A6190;
+
+  --text-primary:   #1f2328;
+  --text-secondary: #42484e;
+  --text-muted:     #6e7781;
+
+  --accent:        #0A6190;
+  --accent-bright: #0D7FA8;
+  --accent-dim:    rgba(10, 97, 144, 0.15);
+  --accent-border: rgba(10, 97, 144, 0.40);
+
+  --amber:         #9a6700;
+  --amber-dim:     rgba(154, 103, 0, 0.15);
+  --amber-border:  rgba(154, 103, 0, 0.40);
+
+  --violet:        #6639ba;
+  --violet-dim:    rgba(102, 57, 186, 0.15);
+  --violet-border: rgba(102, 57, 186, 0.40);
+
+  --danger:        #d1242f;
+  --danger-dim:    rgba(209, 36, 47, 0.15);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+/* ============================================================
+   DARK — GitHub dark palette / vivid Neo4j teal
+   ============================================================ */
+[data-theme="dark"] {
+  --bg-base:       #0d1117;
+  --bg-surface:    #161b22;
+  --bg-elevated:   #21262d;
+  --bg-hover:      #30363d;
+  --bg-active:     #3d444d;
+
+  --border:        #21262d;
+  --border-strong: #30363d;
+  --border-focus:  #00CDD7;
+
+  --text-primary:   #e6edf3;
+  --text-secondary: #8d96a0;
+  --text-muted:     #656d76;
+
+  --accent:        #00CDD7;
+  --accent-bright: #4DE8F0;
+  --accent-dim:    rgba(0, 205, 215, 0.18);
+  --accent-border: rgba(0, 205, 215, 0.45);
+
+  --amber:         #d29922;
+  --amber-dim:     rgba(210, 153, 34, 0.15);
+  --amber-border:  rgba(210, 153, 34, 0.40);
+
+  --violet:        #a371f7;
+  --violet-dim:    rgba(163, 113, 247, 0.15);
+  --violet-border: rgba(163, 113, 247, 0.40);
+
+  --danger:        #f85149;
+  --danger-dim:    rgba(248, 81, 73, 0.15);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+
+html, body, #app {
+  height: 100%;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+/* When a view opts into page-level scrolling (e.g. Generate), break the
+   fixed-height chain so the browser scrollbar appears at the window edge. */
+html.page-scrollable,
+html.page-scrollable body,
+html.page-scrollable #app {
+  height: auto;
+  min-height: 100%;
+}
+
+html.page-scrollable .app-shell {
+  height: auto;
+  min-height: 100%;
+}
+
+html.page-scrollable .app-content {
+  overflow: visible;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  height: 46px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.app-topbar h1 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-bright);
+  font-family: var(--font-mono);
+}
+
+.app-topbar nav {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.app-topbar nav a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.12s, background 0.12s;
+}
+
+.app-topbar nav a:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.app-topbar nav a.router-link-active {
+  color: var(--accent-bright);
+  background: var(--accent-dim);
+}
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ============================================================
+   PANELS
+   ============================================================ */
+
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.panel-header {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* ============================================================
+   CHIPS & BADGES
+   ============================================================ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+}
+
+.chip-entity {
+  background: var(--accent-dim);
+  color: var(--accent-bright);
+  border: 1px solid var(--accent-border);
+}
+
+.chip-tag {
+  background: var(--violet-dim);
+  color: var(--violet);
+  border: 1px solid var(--violet-border);
+}
+
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--accent-dim);
+  color: var(--accent-bright);
+  border: 1px solid var(--accent-border);
+  font-family: var(--font-mono);
+}
+
+.label-chip.tag {
+  background: var(--violet-dim);
+  color: var(--violet);
+  border-color: var(--violet-border);
+}
+
+/* ============================================================
+   LIST ITEMS
+   ============================================================ */
+
+.scroll-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 7px 12px;
+  gap: 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.list-item:last-child { border-bottom: none; }
+.list-item:hover { background: var(--bg-hover); }
+
+.list-item.selected { background: var(--accent-dim); }
+.list-item.selected .list-item-label { color: var(--accent-bright); }
+
+.list-item-label {
+  font-weight: 500;
+  font-size: 13px;
+  flex: 1;
+  font-family: var(--font-mono);
+}
+
+.list-item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ============================================================
+   SECTION LABELS
+   ============================================================ */
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   VUE FLOW OVERRIDES
+   ============================================================ */
+
+.vue-flow { background: var(--bg-base) !important; }
+
+.vue-flow__controls {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+.vue-flow__controls-button {
+  background: var(--bg-surface) !important;
+  border-bottom-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+}
+
+.vue-flow__controls-button:hover {
+  background: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+
+/* Hide authoring-only controls and decorations when capturing for documentation */
+.vue-flow.capturing .vue-flow__controls,
+.vue-flow.capturing .hierarchy-toolbar,
+.vue-flow.capturing .waypoint-handle,
+.vue-flow.capturing .midpoint-handle,
+.vue-flow.capturing .vue-flow__background {
+  display: none !important;
+}
+
+.vue-flow__selection {
+  background: var(--accent-dim) !important;
+  border: 1px solid var(--accent-border) !important;
+}
+
+.vue-flow__background { background: var(--bg-base); }
