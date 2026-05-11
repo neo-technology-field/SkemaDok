@@ -6,6 +6,7 @@ import com.neo4j.skemadok.model.RelationshipTypeInfo;
 import com.neo4j.skemadok.model.TypeParameter;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Detects and collapses parameterised relationship type names into canonical entries.
@@ -84,6 +85,31 @@ public class RelTypeGrouper {
     boolean detectsGroups(Collection<String> names, int minGroupSize) {
         var prefixCount = buildPrefixFrequencies(names);
         return prefixCount.values().stream().anyMatch(count -> count >= minGroupSize);
+    }
+
+    /**
+     * Returns the detected parameterised families and their variant counts.
+     * Keys are the base names (e.g. {@code WORKS_FOR}); values are the number of concrete
+     * type names that map to that family. Only families at or above {@code minGroupSize} are returned.
+     *
+     * <p>Used for logging — one info line per family before the full scan starts, so the user can
+     * see which types triggered the expensive scan path.
+     *
+     * @param names        relationship type names from {@code db.schema.relTypeProperties()}
+     * @param minGroupSize the grouping threshold; mirrors the value passed to {@link #group}
+     */
+    Map<String, Integer> detectedGroupSizes(Collection<String> names, int minGroupSize) {
+        var prefixCount = buildPrefixFrequencies(names);
+        var groupCounts = new LinkedHashMap<String, Integer>();
+        for (var name : names) {
+            var base = shortestQualifyingPrefix(name, prefixCount, minGroupSize);
+            if (base != null) {
+                groupCounts.merge(base, 1, Integer::sum);
+            }
+        }
+        return groupCounts.entrySet().stream()
+                .filter(e -> e.getValue() >= minGroupSize)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
     }
 
     /**

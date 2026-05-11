@@ -1,1165 +1,1874 @@
 {
-  "databaseAddress" : "bolt://devhub.internal:7687",
-  "databaseName" : "devhub",
-  "databaseVersion" : "5.26.0",
-  "capturedAt" : "2026-05-08T09:15:00Z",
-  "lastEditedAt" : "2026-05-08T16:34:02.951801Z",
-  "nodeLabels" : [ {
-    "name" : "User",
-    "nodeCount" : 12847,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "UUID v4. Stable across username changes.",
-      "dataSource" : ""
-    }, {
-      "name" : "username",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Unique handle used for @-mentions and URL paths.",
-      "dataSource" : ""
-    }, {
-      "name" : "email",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Primary email. Bot accounts use a noreply alias.",
-      "dataSource" : ""
-    }, {
-      "name" : "name",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "Display name. Optional — bots often leave this null.",
-      "dataSource" : ""
-    }, {
-      "name" : "createdAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "A human or automated account registered on the platform. Automated accounts carry the :Bot tag in addition to this label.",
-    "dataSource" : "",
-    "color" : "#6b1e1e",
-    "displayProperties" : [ "username" ]
-  }, {
-    "name" : "Bot",
-    "nodeCount" : 143,
-    "coLabels" : [ "User" ],
-    "role" : "HIERARCHY",
-    "properties" : [ {
-      "name" : "appId",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "OAuth application identifier that owns this bot account.",
-      "dataSource" : ""
-    }, {
-      "name" : "scopes",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Space-separated list of OAuth scopes granted to the app.",
-      "dataSource" : ""
-    } ],
-    "description" : "A :User subtype for automated bot accounts. Extends :User with OAuth application metadata. Nodes always carry both :User and :Bot.",
-    "dataSource" : "",
-    "color" : "#1d4e89",
-    "displayProperties" : [ "appId" ],
-    "extends" : "User"
-  }, {
-    "name" : "Repository",
-    "nodeCount" : 3291,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "UUID v4.",
-      "dataSource" : ""
-    }, {
-      "name" : "name",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Short repository name (e.g. 'devhub'). Unique within the owning account.",
-      "dataSource" : ""
-    }, {
-      "name" : "fullName",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Fully qualified name in 'owner/repo' format. Globally unique.",
-      "dataSource" : ""
-    }, {
-      "name" : "description",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "defaultBranch",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "starCount",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "openIssueCount",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "createdAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "A version-controlled project. Visibility is encoded by the :Public or :Private tag. Decommissioned repositories also carry :Archived.",
-    "dataSource" : "",
-    "color" : "#2d6a4f",
-    "displayProperties" : [ "fullName" ]
-  }, {
-    "name" : "Public",
-    "nodeCount" : 1847,
-    "coLabels" : [ "Repository" ],
-    "role" : "TAG",
-    "properties" : [ ],
-    "description" : "Marks a :Repository as publicly visible. Always co-occurs with :Repository — never appears on its own.",
-    "dataSource" : "",
-    "taggedEntities" : [ "Repository" ]
-  }, {
-    "name" : "Private",
-    "nodeCount" : 1444,
-    "coLabels" : [ "Repository" ],
-    "role" : "TAG",
-    "properties" : [ ],
-    "description" : "Marks a :Repository as restricted to its owner or organisation members. Always co-occurs with :Repository.",
-    "dataSource" : "",
-    "taggedEntities" : [ "Repository" ]
-  }, {
-    "name" : "Archived",
-    "nodeCount" : 312,
-    "coLabels" : [ "Repository" ],
-    "role" : "HIERARCHY",
-    "properties" : [ {
-      "name" : "archivedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "When the repository was set to read-only.",
-      "dataSource" : ""
-    } ],
-    "description" : "A :Repository subtype for decommissioned, read-only repositories. Extends :Repository with the archival timestamp. Nodes carry both :Repository and :Archived.",
-    "dataSource" : "",
-    "color" : "#6b3d1e",
-    "displayProperties" : [ "archivedAt" ],
-    "extends" : "Repository"
-  }, {
-    "name" : "Branch",
-    "nodeCount" : 41083,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "name",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Ref name (e.g. 'main', 'feature/login'). Unique within its repository.",
-      "dataSource" : ""
-    }, {
-      "name" : "protected",
-      "types" : [ "BOOLEAN NOT NULL" ],
-      "nullable" : false,
-      "description" : "Protected branches require passing pipeline checks before any push or merge.",
-      "dataSource" : ""
-    }, {
-      "name" : "headSha",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "SHA of the commit this branch currently points to.",
-      "dataSource" : ""
-    }, {
-      "name" : "createdAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "A named pointer to a commit within a repository. The BASED_ON relationship tracks the branch each feature branch was forked from.",
-    "dataSource" : "",
-    "displayProperties" : [ "name" ]
-  }, {
-    "name" : "Commit",
-    "nodeCount" : 4182037,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "sha",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "40-character hex SHA-1. Globally unique across the database.",
-      "dataSource" : ""
-    }, {
-      "name" : "message",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "authorName",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "authorEmail",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Used to resolve the :User node via User.email.",
-      "dataSource" : ""
-    }, {
-      "name" : "authoredAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "additions",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "deletions",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "An immutable snapshot of a repository at a point in time. sha is the globally unique merge key.",
-    "dataSource" : "",
-    "displayProperties" : [ "sha" ]
-  }, {
-    "name" : "PullRequest",
-    "nodeCount" : 89234,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "UUID v4. Stable across number reassignments.",
-      "dataSource" : ""
-    }, {
-      "name" : "number",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "Human-readable per-repository sequence number.",
-      "dataSource" : ""
-    }, {
-      "name" : "title",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "state",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "OPEN, MERGED, or CLOSED.",
-      "dataSource" : ""
-    }, {
-      "name" : "createdAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "mergedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : true,
-      "description" : "Null until the PR is merged.",
-      "dataSource" : ""
-    } ],
-    "description" : "A proposed change from one branch into another, subject to review and CI checks. Draft PRs carry the :Draft tag.",
-    "dataSource" : "",
-    "color" : "#4a3d6b",
-    "displayProperties" : [ "number", "createdAt" ]
-  }, {
-    "name" : "Draft",
-    "nodeCount" : 4821,
-    "coLabels" : [ "PullRequest" ],
-    "role" : "TAG",
-    "properties" : [ ],
-    "description" : "Marks a :PullRequest that is not yet ready for review. Review requests on Draft PRs are blocked. Always co-occurs with :PullRequest.",
-    "dataSource" : ""
-  }, {
-    "name" : "WorkItem",
-    "nodeCount" : 234817,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "UUID v4.",
-      "dataSource" : ""
-    }, {
-      "name" : "number",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "Per-project sequence number shown in the UI.",
-      "dataSource" : ""
-    }, {
-      "name" : "title",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "state",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "OPEN or CLOSED.",
-      "dataSource" : ""
-    }, {
-      "name" : "priority",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "P0 (critical) through P3 (low). Null means unprioritised.",
-      "dataSource" : ""
-    }, {
-      "name" : "createdAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "closedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : true,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "Base label for all tracked work. Subtypes are encoded as hierarchy labels: :Issue, :Epic, or :Milestone.",
-    "dataSource" : "",
-    "color" : "#2d6a4f",
-    "displayProperties" : [ "number", "priority", "state" ]
-  }, {
-    "name" : "Issue",
-    "nodeCount" : 189342,
-    "coLabels" : [ "WorkItem" ],
-    "role" : "HIERARCHY",
-    "properties" : [ {
-      "name" : "reproducesOn",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "Platform or version on which the bug can be reproduced.",
-      "dataSource" : ""
-    }, {
-      "name" : "affectedVersion",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "fixedInVersion",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "Populated by the release pipeline when the fix ships.",
-      "dataSource" : ""
-    } ],
-    "description" : "A :WorkItem subtype for bugs and feature requests. Nodes always carry both :WorkItem and :Issue. Issue-specific properties extend the base WorkItem properties.",
-    "dataSource" : "",
-    "color" : "#1d4e89",
-    "displayProperties" : [ "affectedVersion", "fixedInVersion" ],
-    "extends" : "WorkItem"
-  }, {
-    "name" : "Epic",
-    "nodeCount" : 8214,
-    "coLabels" : [ "WorkItem" ],
-    "role" : "HIERARCHY",
-    "properties" : [ {
-      "name" : "roadmapQuarter",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "Planning quarter this epic is targeted for (e.g. '2026-Q3').",
-      "dataSource" : ""
-    }, {
-      "name" : "targetVersion",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "Release version this epic is scoped to.",
-      "dataSource" : ""
-    } ],
-    "description" : "A :WorkItem subtype representing a large body of work that spans multiple issues. Nodes always carry both :WorkItem and :Epic.",
-    "dataSource" : "",
-    "color" : "#6b3d1e",
-    "displayProperties" : [ "roadmapQuarter" ],
-    "extends" : "WorkItem"
-  }, {
-    "name" : "Milestone",
-    "nodeCount" : 37261,
-    "coLabels" : [ "WorkItem" ],
-    "role" : "HIERARCHY",
-    "properties" : [ {
-      "name" : "targetDate",
-      "types" : [ "DATE NOT NULL" ],
-      "nullable" : true,
-      "description" : "Planned release or completion date.",
-      "dataSource" : ""
-    }, {
-      "name" : "completedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : true,
-      "description" : "Populated when all child work items are closed.",
-      "dataSource" : ""
-    } ],
-    "description" : "A :WorkItem subtype grouping issues and epics by a planned release date. Nodes always carry both :WorkItem and :Milestone.",
-    "dataSource" : "",
-    "color" : "#6b6b1e",
-    "displayProperties" : [ "targetDate" ],
-    "extends" : "WorkItem"
-  }, {
-    "name" : "Pipeline",
-    "nodeCount" : 1847293,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "UUID v4.",
-      "dataSource" : ""
-    }, {
-      "name" : "ref",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Branch name or tag that triggered this run.",
-      "dataSource" : ""
-    }, {
-      "name" : "status",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "PENDING, RUNNING, PASSED, FAILED, or CANCELLED.",
-      "dataSource" : ""
-    }, {
-      "name" : "source",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "What triggered the run: PUSH, PULL_REQUEST, SCHEDULE, or MANUAL.",
-      "dataSource" : ""
-    }, {
-      "name" : "createdAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "finishedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : true,
-      "description" : "Null while the pipeline is still running.",
-      "dataSource" : ""
-    }, {
-      "name" : "duration",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : true,
-      "description" : "Wall-clock time in seconds. Null while running.",
-      "dataSource" : ""
-    } ],
-    "description" : "A CI/CD execution run. Triggered by a push, a pull request event, a cron schedule, or manual dispatch.",
-    "dataSource" : "",
-    "displayProperties" : [ "status" ]
-  }, {
-    "name" : "Job",
-    "nodeCount" : 12948271,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "name",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Human-readable name from the pipeline definition (e.g. 'unit-tests', 'docker-build').",
-      "dataSource" : ""
-    }, {
-      "name" : "stage",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Stage grouping. Jobs in the same stage run in parallel; stages run sequentially.",
-      "dataSource" : ""
-    }, {
-      "name" : "status",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "PENDING, RUNNING, PASSED, FAILED, SKIPPED, or CANCELLED.",
-      "dataSource" : ""
-    }, {
-      "name" : "allowFailure",
-      "types" : [ "BOOLEAN NOT NULL" ],
-      "nullable" : false,
-      "description" : "When true, a failure does not block downstream stages.",
-      "dataSource" : ""
-    }, {
-      "name" : "startedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : true,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "finishedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : true,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "A single step within a :Pipeline. The HAS_JOB relationship connects pipeline to its jobs.",
-    "dataSource" : "",
-    "displayProperties" : [ "name", "status" ]
-  }, {
-    "name" : "Environment",
-    "nodeCount" : 47,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "name",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Unique name for the environment (e.g. 'production', 'staging-eu').",
-      "dataSource" : ""
-    }, {
-      "name" : "url",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : true,
-      "description" : "Base URL of the deployed service in this environment.",
-      "dataSource" : ""
-    }, {
-      "name" : "protected",
-      "types" : [ "BOOLEAN NOT NULL" ],
-      "nullable" : false,
-      "description" : "Protected environments require a manual approval gate before deployment jobs can proceed.",
-      "dataSource" : ""
-    }, {
-      "name" : "tier",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Logical tier: PRODUCTION, STAGING, TESTING, or DEVELOPMENT.",
-      "dataSource" : ""
-    } ],
-    "description" : "A named deployment target. Protected environments add a manual approval step before any pipeline can deploy to them.",
-    "dataSource" : "",
-    "displayProperties" : [ "name", "tier" ]
-  }, {
-    "name" : "Deployment",
-    "nodeCount" : 284719,
-    "role" : "ENTITY",
-    "properties" : [ {
-      "name" : "id",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "sha",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "The exact commit SHA that was deployed.",
-      "dataSource" : ""
-    }, {
-      "name" : "status",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "SUCCESS, FAILURE, or ROLLED_BACK.",
-      "dataSource" : ""
-    }, {
-      "name" : "deployedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "deployedBy",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "Username of the user or bot that triggered the deployment.",
-      "dataSource" : ""
-    } ],
-    "description" : "An immutable audit record of a specific commit being deployed to an environment. Provides the full delivery history.",
-    "dataSource" : ""
-  } ],
-  "relationshipTypes" : [ {
-    "name" : "OWNS",
-    "count" : 14203,
-    "connections" : [ {
-      "startLabels" : [ "User" ],
-      "endLabels" : [ "Repository" ],
-      "count" : 14203
-    } ],
-    "properties" : [ {
-      "name" : "role",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "OWNER or MAINTAINER.",
-      "dataSource" : ""
-    }, {
-      "name" : "grantedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "Links a user to a repository they own or maintain. OWNER can delete the repo; MAINTAINER can push to protected branches.",
-    "dataSource" : ""
-  }, {
-    "name" : "CONTRIBUTES_TO",
-    "count" : 87421,
-    "connections" : [ {
-      "startLabels" : [ "User" ],
-      "endLabels" : [ "Repository" ],
-      "count" : 87421
-    } ],
-    "properties" : [ {
-      "name" : "commitCount",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "Total commits authored in this repository. Updated by the nightly aggregation job.",
-      "dataSource" : ""
-    }, {
-      "name" : "firstCommittedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "Aggregate contribution record linking a user to a repository. Populated nightly — not real-time.",
-    "dataSource" : ""
-  }, {
-    "name" : "HAS_BRANCH",
-    "count" : 41083,
-    "connections" : [ {
-      "startLabels" : [ "Repository" ],
-      "endLabels" : [ "Branch" ],
-      "count" : 41083
-    } ],
-    "properties" : [ ],
-    "description" : "",
-    "dataSource" : ""
-  }, {
-    "name" : "BASED_ON",
-    "count" : 39187,
-    "connections" : [ {
-      "startLabels" : [ "Branch" ],
-      "endLabels" : [ "Branch" ],
-      "count" : 39187
-    } ],
-    "properties" : [ ],
-    "description" : "Points from a feature branch to the branch it was forked from. Used to compute the merge base for diff and conflict detection.",
-    "dataSource" : ""
-  }, {
-    "name" : "HAS_COMMIT",
-    "count" : 4182037,
-    "connections" : [ {
-      "startLabels" : [ "Branch" ],
-      "endLabels" : [ "Commit" ],
-      "count" : 4182037
-    } ],
-    "properties" : [ ],
-    "description" : "Connects a branch to all commits reachable from its HEAD.",
-    "dataSource" : ""
-  }, {
-    "name" : "AUTHORED",
-    "count" : 4182037,
-    "connections" : [ {
-      "startLabels" : [ "User" ],
-      "endLabels" : [ "Commit" ],
-      "count" : 4073291
-    }, {
-      "startLabels" : [ "Bot", "User" ],
-      "endLabels" : [ "Commit" ],
-      "count" : 108746
-    } ],
-    "properties" : [ ],
-    "description" : "Links a user (or bot) to a commit they authored. Author identity is resolved from the git email via User.email at ingestion time.",
-    "dataSource" : ""
-  }, {
-    "name" : "OPENED",
-    "count" : 89234,
-    "connections" : [ {
-      "startLabels" : [ "User" ],
-      "endLabels" : [ "PullRequest" ],
-      "count" : 84413
-    }, {
-      "startLabels" : [ "Bot", "User" ],
-      "endLabels" : [ "PullRequest" ],
-      "count" : 4821
-    } ],
-    "properties" : [ ],
-    "description" : "The user or bot that created the pull request. Exactly one OPENED relationship per :PullRequest.",
-    "dataSource" : ""
-  }, {
-    "name" : "TARGETS",
-    "count" : 89234,
-    "connections" : [ {
-      "startLabels" : [ "PullRequest" ],
-      "endLabels" : [ "Branch" ],
-      "count" : 89234
-    } ],
-    "properties" : [ ],
-    "description" : "The base branch a pull request intends to merge into.",
-    "dataSource" : ""
-  }, {
-    "name" : "INCLUDES",
-    "count" : 1847293,
-    "connections" : [ {
-      "startLabels" : [ "PullRequest" ],
-      "endLabels" : [ "Commit" ],
-      "count" : 1847293
-    } ],
-    "properties" : [ ],
-    "description" : "All commits that are part of this pull request's diff relative to the target branch.",
-    "dataSource" : ""
-  }, {
-    "name" : "REVIEWED",
-    "count" : 312847,
-    "connections" : [ {
-      "startLabels" : [ "User" ],
-      "endLabels" : [ "PullRequest" ],
-      "count" : 312847
-    } ],
-    "properties" : [ {
-      "name" : "state",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "APPROVED, CHANGES_REQUESTED, or COMMENTED.",
-      "dataSource" : ""
-    }, {
-      "name" : "submittedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    }, {
-      "name" : "commentCount",
-      "types" : [ "INTEGER NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "A review submission on a pull request. A user may have multiple REVIEWED relationships to the same PR if they re-review after changes.",
-    "dataSource" : ""
-  }, {
-    "name" : "REQUESTED_REVIEW_FROM",
-    "count" : 198432,
-    "connections" : [ {
-      "startLabels" : [ "PullRequest" ],
-      "endLabels" : [ "User" ],
-      "count" : 198432
-    } ],
-    "properties" : [ {
-      "name" : "requestedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "A pending review request that has not yet been submitted. Removed once the reviewer submits.",
-    "dataSource" : ""
-  }, {
-    "name" : "FILED",
-    "count" : 234817,
-    "connections" : [ {
-      "startLabels" : [ "User" ],
-      "endLabels" : [ "WorkItem" ],
-      "count" : 234817
-    } ],
-    "properties" : [ ],
-    "description" : "The user who created the work item. Exactly one FILED relationship per :WorkItem.",
-    "dataSource" : ""
-  }, {
-    "name" : "ASSIGNED_TO",
-    "count" : 298432,
-    "connections" : [ {
-      "startLabels" : [ "WorkItem" ],
-      "endLabels" : [ "User" ],
-      "count" : 298432
-    } ],
-    "properties" : [ {
-      "name" : "assignedAt",
-      "types" : [ "ZONED DATETIME NOT NULL" ],
-      "nullable" : false,
-      "description" : "",
-      "dataSource" : ""
-    } ],
-    "description" : "Current assignees for a work item. A work item may have multiple ASSIGNED_TO relationships.",
-    "dataSource" : "",
-    "displayProperties" : [ "assignedAt" ]
-  }, {
-    "name" : "LINKED_TO",
-    "count" : 147832,
-    "connections" : [ {
-      "startLabels" : [ "PullRequest" ],
-      "endLabels" : [ "WorkItem" ],
-      "count" : 147832
-    } ],
-    "properties" : [ {
-      "name" : "linkType",
-      "types" : [ "STRING NOT NULL" ],
-      "nullable" : false,
-      "description" : "CLOSES, FIXES, or REFERENCES. CLOSES and FIXES auto-close the work item on merge.",
-      "dataSource" : ""
-    } ],
-    "description" : "Associates a pull request with the work item(s) it implements. A PR may link to multiple work items.",
-    "dataSource" : "",
-    "displayProperties" : [ "linkType" ]
-  }, {
-    "name" : "BLOCKS",
-    "count" : 18473,
-    "connections" : [ {
-      "startLabels" : [ "WorkItem" ],
-      "endLabels" : [ "WorkItem" ],
-      "count" : 18473
-    } ],
-    "properties" : [ ],
-    "description" : "A dependency edge: the source work item must be resolved before work on the target can proceed.",
-    "dataSource" : ""
-  }, {
-    "name" : "PART_OF",
-    "count" : 87234,
-    "connections" : [ {
-      "startLabels" : [ "Issue", "WorkItem" ],
-      "endLabels" : [ "Epic", "WorkItem" ],
-      "count" : 59817
-    }, {
-      "startLabels" : [ "Epic", "WorkItem" ],
-      "endLabels" : [ "Milestone", "WorkItem" ],
-      "count" : 18204
-    }, {
-      "startLabels" : [ "Issue", "WorkItem" ],
-      "endLabels" : [ "Milestone", "WorkItem" ],
-      "count" : 9213
-    } ],
-    "properties" : [ ],
-    "description" : "Containment hierarchy: issues roll up into epics, and epics or issues roll up into milestones.",
-    "dataSource" : ""
-  }, {
-    "name" : "TRIGGERED",
-    "count" : 1847293,
-    "connections" : [ {
-      "startLabels" : [ "Commit" ],
-      "endLabels" : [ "Pipeline" ],
-      "count" : 1847293
-    } ],
-    "properties" : [ ],
-    "description" : "Links the commit that initiated a pipeline run. Push-triggered pipelines have one source commit; merge pipelines point to the merge commit.",
-    "dataSource" : ""
-  }, {
-    "name" : "HAS_JOB",
-    "count" : 12948271,
-    "connections" : [ {
-      "startLabels" : [ "Pipeline" ],
-      "endLabels" : [ "Job" ],
-      "count" : 12948271
-    } ],
-    "properties" : [ ],
-    "description" : "Enumerates all jobs belonging to a pipeline run. Job count varies by pipeline definition.",
-    "dataSource" : ""
-  }, {
-    "name" : "RUNS_ON",
-    "count" : 12948271,
-    "connections" : [ {
-      "startLabels" : [ "Job" ],
-      "endLabels" : [ "Environment" ],
-      "count" : 12948271
-    } ],
-    "properties" : [ ],
-    "description" : "The environment a job executes in. Most jobs run in ephemeral runner environments; deployment jobs target named :Environment nodes.",
-    "dataSource" : ""
-  }, {
-    "name" : "CREATED_DEPLOYMENT",
-    "count" : 284719,
-    "connections" : [ {
-      "startLabels" : [ "Pipeline" ],
-      "endLabels" : [ "Deployment" ],
-      "count" : 284719
-    } ],
-    "properties" : [ ],
-    "description" : "Links the pipeline run that produced a deployment record.",
-    "dataSource" : ""
-  }, {
-    "name" : "DEPLOYED_TO",
-    "count" : 284719,
-    "connections" : [ {
-      "startLabels" : [ "Deployment" ],
-      "endLabels" : [ "Environment" ],
-      "count" : 284719
-    } ],
-    "properties" : [ ],
-    "description" : "The environment a deployment was shipped to.",
-    "dataSource" : ""
-  } ],
-  "indexes" : [ {
-    "name" : "user_email_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "User" ],
-    "properties" : [ "email" ],
-    "state" : "ONLINE",
-    "readCount" : 841293,
-    "indexConfig" : ""
-  }, {
-    "name" : "user_username_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "User" ],
-    "properties" : [ "username" ],
-    "state" : "ONLINE",
-    "readCount" : 2193847,
-    "indexConfig" : ""
-  }, {
-    "name" : "repo_fullname_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Repository" ],
-    "properties" : [ "fullName" ],
-    "state" : "ONLINE",
-    "readCount" : 4821093,
-    "indexConfig" : ""
-  }, {
-    "name" : "commit_sha_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Commit" ],
-    "properties" : [ "sha" ],
-    "state" : "ONLINE",
-    "readCount" : 8472931,
-    "indexConfig" : ""
-  }, {
-    "name" : "pipeline_status_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Pipeline" ],
-    "properties" : [ "status" ],
-    "state" : "ONLINE",
-    "readCount" : 12847293,
-    "indexConfig" : ""
-  }, {
-    "name" : "pipeline_created_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Pipeline" ],
-    "properties" : [ "createdAt" ],
-    "state" : "ONLINE",
-    "readCount" : 3918472,
-    "indexConfig" : ""
-  }, {
-    "name" : "workitem_state_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "WorkItem" ],
-    "properties" : [ "state" ],
-    "state" : "ONLINE",
-    "readCount" : 7284193,
-    "indexConfig" : ""
-  }, {
-    "name" : "workitem_priority_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "WorkItem" ],
-    "properties" : [ "priority" ],
-    "state" : "ONLINE",
-    "readCount" : 1847293,
-    "indexConfig" : ""
-  }, {
-    "name" : "job_stage_status_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Job" ],
-    "properties" : [ "stage", "status" ],
-    "state" : "ONLINE",
-    "readCount" : 9182734,
-    "indexConfig" : ""
-  }, {
-    "name" : "deployment_date_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Deployment" ],
-    "properties" : [ "deployedAt" ],
-    "state" : "ONLINE",
-    "readCount" : 2847193,
-    "indexConfig" : ""
-  }, {
-    "name" : "workitem_search_idx",
-    "type" : "FULLTEXT",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "WorkItem" ],
-    "properties" : [ "title", "body" ],
-    "state" : "ONLINE",
-    "readCount" : 482193,
-    "indexConfig" : "{`fulltext.analyzer`: `standard-no-stop-words`, `fulltext.eventually_consistent`: false}"
-  }, {
-    "name" : "repo_search_idx",
-    "type" : "FULLTEXT",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "Repository" ],
-    "properties" : [ "name", "description" ],
-    "state" : "ONLINE",
-    "readCount" : 193847,
-    "indexConfig" : "{`fulltext.analyzer`: `standard-no-stop-words`, `fulltext.eventually_consistent`: false}"
-  }, {
-    "name" : "pr_state_idx",
-    "type" : "RANGE",
-    "entityType" : "node",
-    "labelsOrTypes" : [ "PullRequest" ],
-    "properties" : [ "state" ],
-    "state" : "ONLINE",
-    "readCount" : 5847193,
-    "indexConfig" : ""
-  }, {
-    "name" : "authored_rel_idx",
-    "type" : "RANGE",
-    "entityType" : "relationship",
-    "labelsOrTypes" : [ "AUTHORED" ],
-    "properties" : [ "authoredAt" ],
-    "state" : "ONLINE",
-    "readCount" : 0,
-    "indexConfig" : ""
-  } ],
-  "constraints" : [ {
-    "name" : "constraint_user_email_unique",
-    "type" : "UNIQUENESS",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "User" ],
-    "properties" : [ "email" ]
-  }, {
-    "name" : "constraint_user_username_unique",
-    "type" : "UNIQUENESS",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "User" ],
-    "properties" : [ "username" ]
-  }, {
-    "name" : "constraint_repo_fullname_unique",
-    "type" : "UNIQUENESS",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "Repository" ],
-    "properties" : [ "fullName" ]
-  }, {
-    "name" : "constraint_commit_sha_unique",
-    "type" : "UNIQUENESS",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "Commit" ],
-    "properties" : [ "sha" ]
-  }, {
-    "name" : "constraint_env_name_unique",
-    "type" : "UNIQUENESS",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "Environment" ],
-    "properties" : [ "name" ]
-  }, {
-    "name" : "constraint_workitem_id_key",
-    "type" : "NODE_KEY",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "WorkItem" ],
-    "properties" : [ "id" ]
-  }, {
-    "name" : "constraint_pipeline_id_key",
-    "type" : "NODE_KEY",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "Pipeline" ],
-    "properties" : [ "id" ]
-  }, {
-    "name" : "constraint_pr_id_key",
-    "type" : "NODE_KEY",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "PullRequest" ],
-    "properties" : [ "id" ]
-  }, {
-    "name" : "constraint_deployment_id_key",
-    "type" : "NODE_KEY",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "Deployment" ],
-    "properties" : [ "id" ]
-  }, {
-    "name" : "constraint_workitem_priority_type",
-    "type" : "NODE_PROPERTY_TYPE",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "WorkItem" ],
-    "properties" : [ "priority" ]
-  }, {
-    "name" : "constraint_deployment_status_exists",
-    "type" : "NODE_PROPERTY_EXISTENCE",
-    "entityType" : "NODE",
-    "labelsOrTypes" : [ "Deployment" ],
-    "properties" : [ "status" ]
-  }, {
-    "name" : "constraint_reviewed_state_exists",
-    "type" : "RELATIONSHIP_PROPERTY_EXISTENCE",
-    "entityType" : "RELATIONSHIP",
-    "labelsOrTypes" : [ "REVIEWED" ],
-    "properties" : [ "state" ]
-  } ],
-  "views" : [ {
-    "name" : "Identity & Access",
-    "description" : "Who owns what. Users, bots, and repositories with their ownership and contribution relationships.",
-    "labels" : [ "User", "Bot", "Repository", "Public", "Private", "Archived" ],
-    "relationshipTypes" : [ "OWNS", "CONTRIBUTES_TO" ],
-    "layout" : {
-      "nodes" : {
-        "Archived" : {
-          "x" : 334.0,
-          "y" : -227.0
+  "databaseAddress": "bolt://devhub.internal:7687",
+  "databaseName": "devhub",
+  "databaseVersion": "5.26.0",
+  "capturedAt": "2026-05-08T09:15:00Z",
+  "lastEditedAt": "2026-05-08T16:34:02.951801Z",
+  "nodeLabels": [
+    {
+      "name": "User",
+      "nodeCount": 12847,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "UUID v4. Stable across username changes.",
+          "dataSource": ""
         },
-        "Bot" : {
-          "x" : -26.0,
-          "y" : -227.0
+        {
+          "name": "username",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Unique handle used for @-mentions and URL paths.",
+          "dataSource": ""
         },
-        "User" : {
-          "x" : -80.0,
-          "y" : 0.0
+        {
+          "name": "email",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Primary email. Bot accounts use a noreply alias.",
+          "dataSource": ""
+        },
+        {
+          "name": "name",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Display name. Optional — bots often leave this null.",
+          "dataSource": ""
+        },
+        {
+          "name": "createdAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
         }
-      },
-      "hierarchyMode" : "boxes"
+      ],
+      "description": "A human or automated account registered on the platform. Automated accounts carry the :Bot tag in addition to this label.",
+      "dataSource": "",
+      "color": "#6b1e1e",
+      "displayProperties": [
+        "username"
+      ]
+    },
+    {
+      "name": "Bot",
+      "nodeCount": 143,
+      "coLabels": [
+        "User"
+      ],
+      "role": "HIERARCHY",
+      "properties": [
+        {
+          "name": "appId",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "OAuth application identifier that owns this bot account.",
+          "dataSource": ""
+        },
+        {
+          "name": "scopes",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Space-separated list of OAuth scopes granted to the app.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A :User subtype for automated bot accounts. Extends :User with OAuth application metadata. Nodes always carry both :User and :Bot.",
+      "dataSource": "",
+      "color": "#1d4e89",
+      "displayProperties": [
+        "appId"
+      ],
+      "extends": "User"
+    },
+    {
+      "name": "Repository",
+      "nodeCount": 3291,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "UUID v4.",
+          "dataSource": ""
+        },
+        {
+          "name": "name",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Short repository name (e.g. 'devhub'). Unique within the owning account.",
+          "dataSource": ""
+        },
+        {
+          "name": "fullName",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Fully qualified name in 'owner/repo' format. Globally unique.",
+          "dataSource": ""
+        },
+        {
+          "name": "description",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "defaultBranch",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "starCount",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "openIssueCount",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "createdAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "A version-controlled project. Visibility is encoded by the :Public or :Private tag. Decommissioned repositories also carry :Archived.",
+      "dataSource": "",
+      "color": "#2d6a4f",
+      "displayProperties": [
+        "fullName"
+      ]
+    },
+    {
+      "name": "Public",
+      "nodeCount": 1847,
+      "coLabels": [
+        "Repository"
+      ],
+      "role": "TAG",
+      "properties": [],
+      "description": "Marks a :Repository as publicly visible. Always co-occurs with :Repository — never appears on its own.",
+      "dataSource": "",
+      "taggedEntities": [
+        "Repository"
+      ]
+    },
+    {
+      "name": "Private",
+      "nodeCount": 1444,
+      "coLabels": [
+        "Repository"
+      ],
+      "role": "TAG",
+      "properties": [],
+      "description": "Marks a :Repository as restricted to its owner or organisation members. Always co-occurs with :Repository.",
+      "dataSource": "",
+      "taggedEntities": [
+        "Repository"
+      ]
+    },
+    {
+      "name": "Archived",
+      "nodeCount": 312,
+      "coLabels": [
+        "Repository"
+      ],
+      "role": "HIERARCHY",
+      "properties": [
+        {
+          "name": "archivedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "When the repository was set to read-only.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A :Repository subtype for decommissioned, read-only repositories. Extends :Repository with the archival timestamp. Nodes carry both :Repository and :Archived.",
+      "dataSource": "",
+      "color": "#6b3d1e",
+      "displayProperties": [
+        "archivedAt"
+      ],
+      "extends": "Repository"
+    },
+    {
+      "name": "Branch",
+      "nodeCount": 41083,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "name",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Ref name (e.g. 'main', 'feature/login'). Unique within its repository.",
+          "dataSource": ""
+        },
+        {
+          "name": "protected",
+          "types": [
+            "BOOLEAN NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Protected branches require passing pipeline checks before any push or merge.",
+          "dataSource": ""
+        },
+        {
+          "name": "headSha",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "SHA of the commit this branch currently points to.",
+          "dataSource": ""
+        },
+        {
+          "name": "createdAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "A named pointer to a commit within a repository. The BASED_ON relationship tracks the branch each feature branch was forked from.",
+      "dataSource": "",
+      "displayProperties": [
+        "name"
+      ]
+    },
+    {
+      "name": "Commit",
+      "nodeCount": 4182037,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "sha",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "40-character hex SHA-1. Globally unique across the database.",
+          "dataSource": ""
+        },
+        {
+          "name": "message",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "authorName",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "authorEmail",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Used to resolve the :User node via User.email.",
+          "dataSource": ""
+        },
+        {
+          "name": "authoredAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "additions",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "deletions",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "An immutable snapshot of a repository at a point in time. sha is the globally unique merge key.",
+      "dataSource": "",
+      "displayProperties": [
+        "sha"
+      ]
+    },
+    {
+      "name": "PullRequest",
+      "nodeCount": 89234,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "UUID v4. Stable across number reassignments.",
+          "dataSource": ""
+        },
+        {
+          "name": "number",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Human-readable per-repository sequence number.",
+          "dataSource": ""
+        },
+        {
+          "name": "title",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "state",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "OPEN, MERGED, or CLOSED.",
+          "dataSource": ""
+        },
+        {
+          "name": "createdAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "mergedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Null until the PR is merged.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A proposed change from one branch into another, subject to review and CI checks. Draft PRs carry the :Draft tag.",
+      "dataSource": "",
+      "color": "#4a3d6b",
+      "displayProperties": [
+        "number",
+        "createdAt"
+      ]
+    },
+    {
+      "name": "Draft",
+      "nodeCount": 4821,
+      "coLabels": [
+        "PullRequest"
+      ],
+      "role": "TAG",
+      "properties": [],
+      "description": "Marks a :PullRequest that is not yet ready for review. Review requests on Draft PRs are blocked. Always co-occurs with :PullRequest.",
+      "dataSource": ""
+    },
+    {
+      "name": "WorkItem",
+      "nodeCount": 234817,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "UUID v4.",
+          "dataSource": ""
+        },
+        {
+          "name": "number",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Per-project sequence number shown in the UI.",
+          "dataSource": ""
+        },
+        {
+          "name": "title",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "state",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "OPEN or CLOSED.",
+          "dataSource": ""
+        },
+        {
+          "name": "priority",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "P0 (critical) through P3 (low). Null means unprioritised.",
+          "dataSource": ""
+        },
+        {
+          "name": "createdAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "closedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": true,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "Base label for all tracked work. Subtypes are encoded as hierarchy labels: :Issue, :Epic, or :Milestone.",
+      "dataSource": "",
+      "color": "#2d6a4f",
+      "displayProperties": [
+        "number",
+        "priority",
+        "state"
+      ]
+    },
+    {
+      "name": "Issue",
+      "nodeCount": 189342,
+      "coLabels": [
+        "WorkItem"
+      ],
+      "role": "HIERARCHY",
+      "properties": [
+        {
+          "name": "reproducesOn",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Platform or version on which the bug can be reproduced.",
+          "dataSource": ""
+        },
+        {
+          "name": "affectedVersion",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "fixedInVersion",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Populated by the release pipeline when the fix ships.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A :WorkItem subtype for bugs and feature requests. Nodes always carry both :WorkItem and :Issue. Issue-specific properties extend the base WorkItem properties.",
+      "dataSource": "",
+      "color": "#1d4e89",
+      "displayProperties": [
+        "affectedVersion",
+        "fixedInVersion"
+      ],
+      "extends": "WorkItem"
+    },
+    {
+      "name": "Epic",
+      "nodeCount": 8214,
+      "coLabels": [
+        "WorkItem"
+      ],
+      "role": "HIERARCHY",
+      "properties": [
+        {
+          "name": "roadmapQuarter",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Planning quarter this epic is targeted for (e.g. '2026-Q3').",
+          "dataSource": ""
+        },
+        {
+          "name": "targetVersion",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Release version this epic is scoped to.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A :WorkItem subtype representing a large body of work that spans multiple issues. Nodes always carry both :WorkItem and :Epic.",
+      "dataSource": "",
+      "color": "#6b3d1e",
+      "displayProperties": [
+        "roadmapQuarter"
+      ],
+      "extends": "WorkItem"
+    },
+    {
+      "name": "Milestone",
+      "nodeCount": 37261,
+      "coLabels": [
+        "WorkItem"
+      ],
+      "role": "HIERARCHY",
+      "properties": [
+        {
+          "name": "targetDate",
+          "types": [
+            "DATE NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Planned release or completion date.",
+          "dataSource": ""
+        },
+        {
+          "name": "completedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Populated when all child work items are closed.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A :WorkItem subtype grouping issues and epics by a planned release date. Nodes always carry both :WorkItem and :Milestone.",
+      "dataSource": "",
+      "color": "#6b6b1e",
+      "displayProperties": [
+        "targetDate"
+      ],
+      "extends": "WorkItem"
+    },
+    {
+      "name": "Pipeline",
+      "nodeCount": 1847293,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "UUID v4.",
+          "dataSource": ""
+        },
+        {
+          "name": "ref",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Branch name or tag that triggered this run.",
+          "dataSource": ""
+        },
+        {
+          "name": "status",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "PENDING, RUNNING, PASSED, FAILED, or CANCELLED.",
+          "dataSource": ""
+        },
+        {
+          "name": "source",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "What triggered the run: PUSH, PULL_REQUEST, SCHEDULE, or MANUAL.",
+          "dataSource": ""
+        },
+        {
+          "name": "createdAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "finishedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Null while the pipeline is still running.",
+          "dataSource": ""
+        },
+        {
+          "name": "duration",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Wall-clock time in seconds. Null while running.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A CI/CD execution run. Triggered by a push, a pull request event, a cron schedule, or manual dispatch.",
+      "dataSource": "",
+      "displayProperties": [
+        "status"
+      ]
+    },
+    {
+      "name": "Job",
+      "nodeCount": 12948271,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "name",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Human-readable name from the pipeline definition (e.g. 'unit-tests', 'docker-build').",
+          "dataSource": ""
+        },
+        {
+          "name": "stage",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Stage grouping. Jobs in the same stage run in parallel; stages run sequentially.",
+          "dataSource": ""
+        },
+        {
+          "name": "status",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "PENDING, RUNNING, PASSED, FAILED, SKIPPED, or CANCELLED.",
+          "dataSource": ""
+        },
+        {
+          "name": "allowFailure",
+          "types": [
+            "BOOLEAN NOT NULL"
+          ],
+          "nullable": false,
+          "description": "When true, a failure does not block downstream stages.",
+          "dataSource": ""
+        },
+        {
+          "name": "startedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": true,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "finishedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": true,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "A single step within a :Pipeline. The HAS_JOB relationship connects pipeline to its jobs.",
+      "dataSource": "",
+      "displayProperties": [
+        "name",
+        "status"
+      ]
+    },
+    {
+      "name": "Environment",
+      "nodeCount": 47,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "name",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Unique name for the environment (e.g. 'production', 'staging-eu').",
+          "dataSource": ""
+        },
+        {
+          "name": "url",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": true,
+          "description": "Base URL of the deployed service in this environment.",
+          "dataSource": ""
+        },
+        {
+          "name": "protected",
+          "types": [
+            "BOOLEAN NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Protected environments require a manual approval gate before deployment jobs can proceed.",
+          "dataSource": ""
+        },
+        {
+          "name": "tier",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Logical tier: PRODUCTION, STAGING, TESTING, or DEVELOPMENT.",
+          "dataSource": ""
+        }
+      ],
+      "description": "A named deployment target. Protected environments add a manual approval step before any pipeline can deploy to them.",
+      "dataSource": "",
+      "displayProperties": [
+        "name",
+        "tier"
+      ]
+    },
+    {
+      "name": "Deployment",
+      "nodeCount": 284719,
+      "role": "ENTITY",
+      "properties": [
+        {
+          "name": "id",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "sha",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "The exact commit SHA that was deployed.",
+          "dataSource": ""
+        },
+        {
+          "name": "status",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "SUCCESS, FAILURE, or ROLLED_BACK.",
+          "dataSource": ""
+        },
+        {
+          "name": "deployedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "deployedBy",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Username of the user or bot that triggered the deployment.",
+          "dataSource": ""
+        }
+      ],
+      "description": "An immutable audit record of a specific commit being deployed to an environment. Provides the full delivery history.",
+      "dataSource": ""
     }
-  }, {
-    "name" : "Source Control",
-    "description" : "The code review lifecycle: branches, commits, pull requests, and the review workflow.",
-    "labels" : [ "User", "Repository", "Branch", "Commit", "PullRequest", "Draft" ],
-    "relationshipTypes" : [ "HAS_BRANCH", "HAS_COMMIT", "BASED_ON", "AUTHORED", "OPENED", "TARGETS", "INCLUDES", "REVIEWED", "REQUESTED_REVIEW_FROM" ]
-  }, {
-    "name" : "CI/CD Pipeline",
-    "description" : "From commit to production: how a push flows through pipeline execution and lands in a deployment.",
-    "labels" : [ "Commit", "Pipeline", "Job", "Environment", "Deployment" ],
-    "relationshipTypes" : [ "TRIGGERED", "HAS_JOB", "RUNS_ON", "CREATED_DEPLOYMENT", "DEPLOYED_TO" ]
-  }, {
-    "name" : "Work Tracking",
-    "description" : "Issues, epics, and milestones: the planning hierarchy and how work items connect to pull requests and people.",
-    "labels" : [ "User", "WorkItem", "PullRequest", "Issue", "Epic", "Milestone" ],
-    "relationshipTypes" : [ "FILED", "ASSIGNED_TO", "LINKED_TO", "BLOCKS", "PART_OF", "OPENED", "REVIEWED", "REQUESTED_REVIEW_FROM" ],
-    "layout" : {
-      "nodes" : {
-        "User" : {
-          "x" : 260.0,
-          "y" : -249.0
+  ],
+  "relationshipTypes": [
+    {
+      "name": "OWNS",
+      "count": 14203,
+      "connections": [
+        {
+          "startLabels": [
+            "User"
+          ],
+          "endLabels": [
+            "Repository"
+          ],
+          "count": 14203
+        }
+      ],
+      "properties": [
+        {
+          "name": "role",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "OWNER or MAINTAINER.",
+          "dataSource": ""
         },
-        "PullRequest" : {
-          "x" : -140.0,
-          "y" : -260.0
+        {
+          "name": "grantedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "Links a user to a repository they own or maintain. OWNER can delete the repo; MAINTAINER can push to protected branches.",
+      "dataSource": ""
+    },
+    {
+      "name": "CONTRIBUTES_TO",
+      "count": 87421,
+      "connections": [
+        {
+          "startLabels": [
+            "User"
+          ],
+          "endLabels": [
+            "Repository"
+          ],
+          "count": 87421
+        }
+      ],
+      "properties": [
+        {
+          "name": "commitCount",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "Total commits authored in this repository. Updated by the nightly aggregation job.",
+          "dataSource": ""
         },
-        "Issue" : {
-          "x" : 234.0,
-          "y" : 275.0
+        {
+          "name": "firstCommittedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "Aggregate contribution record linking a user to a repository. Populated nightly — not real-time.",
+      "dataSource": ""
+    },
+    {
+      "name": "HAS_BRANCH",
+      "count": 41083,
+      "connections": [
+        {
+          "startLabels": [
+            "Repository"
+          ],
+          "endLabels": [
+            "Branch"
+          ],
+          "count": 41083
+        }
+      ],
+      "properties": [],
+      "description": "",
+      "dataSource": ""
+    },
+    {
+      "name": "BASED_ON",
+      "count": 39187,
+      "connections": [
+        {
+          "startLabels": [
+            "Branch"
+          ],
+          "endLabels": [
+            "Branch"
+          ],
+          "count": 39187
+        }
+      ],
+      "properties": [],
+      "description": "Points from a feature branch to the branch it was forked from. Used to compute the merge base for diff and conflict detection.",
+      "dataSource": ""
+    },
+    {
+      "name": "HAS_COMMIT",
+      "count": 4182037,
+      "connections": [
+        {
+          "startLabels": [
+            "Branch"
+          ],
+          "endLabels": [
+            "Commit"
+          ],
+          "count": 4182037
+        }
+      ],
+      "properties": [],
+      "description": "Connects a branch to all commits reachable from its HEAD.",
+      "dataSource": ""
+    },
+    {
+      "name": "AUTHORED",
+      "count": 4182037,
+      "connections": [
+        {
+          "startLabels": [
+            "User"
+          ],
+          "endLabels": [
+            "Commit"
+          ],
+          "count": 4073291
         },
-        "Epic" : {
-          "x" : -6.0,
-          "y" : 195.0
+        {
+          "startLabels": [
+            "Bot",
+            "User"
+          ],
+          "endLabels": [
+            "Commit"
+          ],
+          "count": 108746
+        }
+      ],
+      "properties": [],
+      "description": "Links a user (or bot) to a commit they authored. Author identity is resolved from the git email via User.email at ingestion time.",
+      "dataSource": ""
+    },
+    {
+      "name": "OPENED",
+      "count": 89234,
+      "connections": [
+        {
+          "startLabels": [
+            "User"
+          ],
+          "endLabels": [
+            "PullRequest"
+          ],
+          "count": 84413
         },
-        "Milestone" : {
-          "x" : 234.0,
-          "y" : 195.0
+        {
+          "startLabels": [
+            "Bot",
+            "User"
+          ],
+          "endLabels": [
+            "PullRequest"
+          ],
+          "count": 4821
+        }
+      ],
+      "properties": [],
+      "description": "The user or bot that created the pull request. Exactly one OPENED relationship per :PullRequest.",
+      "dataSource": ""
+    },
+    {
+      "name": "TARGETS",
+      "count": 89234,
+      "connections": [
+        {
+          "startLabels": [
+            "PullRequest"
+          ],
+          "endLabels": [
+            "Branch"
+          ],
+          "count": 89234
+        }
+      ],
+      "properties": [],
+      "description": "The base branch a pull request intends to merge into.",
+      "dataSource": ""
+    },
+    {
+      "name": "INCLUDES",
+      "count": 1847293,
+      "connections": [
+        {
+          "startLabels": [
+            "PullRequest"
+          ],
+          "endLabels": [
+            "Commit"
+          ],
+          "count": 1847293
+        }
+      ],
+      "properties": [],
+      "description": "All commits that are part of this pull request's diff relative to the target branch.",
+      "dataSource": ""
+    },
+    {
+      "name": "REVIEWED",
+      "count": 312847,
+      "connections": [
+        {
+          "startLabels": [
+            "User"
+          ],
+          "endLabels": [
+            "PullRequest"
+          ],
+          "count": 312847
+        }
+      ],
+      "properties": [
+        {
+          "name": "state",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "APPROVED, CHANGES_REQUESTED, or COMMENTED.",
+          "dataSource": ""
+        },
+        {
+          "name": "submittedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        },
+        {
+          "name": "commentCount",
+          "types": [
+            "INTEGER NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "A review submission on a pull request. A user may have multiple REVIEWED relationships to the same PR if they re-review after changes.",
+      "dataSource": ""
+    },
+    {
+      "name": "REQUESTED_REVIEW_FROM",
+      "count": 198432,
+      "connections": [
+        {
+          "startLabels": [
+            "PullRequest"
+          ],
+          "endLabels": [
+            "User"
+          ],
+          "count": 198432
+        }
+      ],
+      "properties": [
+        {
+          "name": "requestedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "A pending review request that has not yet been submitted. Removed once the reviewer submits.",
+      "dataSource": ""
+    },
+    {
+      "name": "FILED",
+      "count": 234817,
+      "connections": [
+        {
+          "startLabels": [
+            "User"
+          ],
+          "endLabels": [
+            "WorkItem"
+          ],
+          "count": 234817
+        }
+      ],
+      "properties": [],
+      "description": "The user who created the work item. Exactly one FILED relationship per :WorkItem.",
+      "dataSource": ""
+    },
+    {
+      "name": "ASSIGNED_TO",
+      "count": 298432,
+      "connections": [
+        {
+          "startLabels": [
+            "WorkItem"
+          ],
+          "endLabels": [
+            "User"
+          ],
+          "count": 298432
+        }
+      ],
+      "properties": [
+        {
+          "name": "assignedAt",
+          "types": [
+            "ZONED DATETIME NOT NULL"
+          ],
+          "nullable": false,
+          "description": "",
+          "dataSource": ""
+        }
+      ],
+      "description": "Current assignees for a work item. A work item may have multiple ASSIGNED_TO relationships.",
+      "dataSource": "",
+      "displayProperties": [
+        "assignedAt"
+      ]
+    },
+    {
+      "name": "LINKED_TO",
+      "count": 147832,
+      "connections": [
+        {
+          "startLabels": [
+            "PullRequest"
+          ],
+          "endLabels": [
+            "WorkItem"
+          ],
+          "count": 147832
+        }
+      ],
+      "properties": [
+        {
+          "name": "linkType",
+          "types": [
+            "STRING NOT NULL"
+          ],
+          "nullable": false,
+          "description": "CLOSES, FIXES, or REFERENCES. CLOSES and FIXES auto-close the work item on merge.",
+          "dataSource": ""
+        }
+      ],
+      "description": "Associates a pull request with the work item(s) it implements. A PR may link to multiple work items.",
+      "dataSource": "",
+      "displayProperties": [
+        "linkType"
+      ]
+    },
+    {
+      "name": "BLOCKS",
+      "count": 18473,
+      "connections": [
+        {
+          "startLabels": [
+            "WorkItem"
+          ],
+          "endLabels": [
+            "WorkItem"
+          ],
+          "count": 18473
+        }
+      ],
+      "properties": [],
+      "description": "A dependency edge: the source work item must be resolved before work on the target can proceed.",
+      "dataSource": ""
+    },
+    {
+      "name": "PART_OF",
+      "count": 87234,
+      "connections": [
+        {
+          "startLabels": [
+            "Issue",
+            "WorkItem"
+          ],
+          "endLabels": [
+            "Epic",
+            "WorkItem"
+          ],
+          "count": 59817
+        },
+        {
+          "startLabels": [
+            "Epic",
+            "WorkItem"
+          ],
+          "endLabels": [
+            "Milestone",
+            "WorkItem"
+          ],
+          "count": 18204
+        },
+        {
+          "startLabels": [
+            "Issue",
+            "WorkItem"
+          ],
+          "endLabels": [
+            "Milestone",
+            "WorkItem"
+          ],
+          "count": 9213
+        }
+      ],
+      "properties": [],
+      "description": "Containment hierarchy: issues roll up into epics, and epics or issues roll up into milestones.",
+      "dataSource": ""
+    },
+    {
+      "name": "TRIGGERED",
+      "count": 1847293,
+      "connections": [
+        {
+          "startLabels": [
+            "Commit"
+          ],
+          "endLabels": [
+            "Pipeline"
+          ],
+          "count": 1847293
+        }
+      ],
+      "properties": [],
+      "description": "Links the commit that initiated a pipeline run. Push-triggered pipelines have one source commit; merge pipelines point to the merge commit.",
+      "dataSource": ""
+    },
+    {
+      "name": "HAS_JOB",
+      "count": 12948271,
+      "connections": [
+        {
+          "startLabels": [
+            "Pipeline"
+          ],
+          "endLabels": [
+            "Job"
+          ],
+          "count": 12948271
+        }
+      ],
+      "properties": [],
+      "description": "Enumerates all jobs belonging to a pipeline run. Job count varies by pipeline definition.",
+      "dataSource": ""
+    },
+    {
+      "name": "RUNS_ON",
+      "count": 12948271,
+      "connections": [
+        {
+          "startLabels": [
+            "Job"
+          ],
+          "endLabels": [
+            "Environment"
+          ],
+          "count": 12948271
+        }
+      ],
+      "properties": [],
+      "description": "The environment a job executes in. Most jobs run in ephemeral runner environments; deployment jobs target named :Environment nodes.",
+      "dataSource": ""
+    },
+    {
+      "name": "CREATED_DEPLOYMENT",
+      "count": 284719,
+      "connections": [
+        {
+          "startLabels": [
+            "Pipeline"
+          ],
+          "endLabels": [
+            "Deployment"
+          ],
+          "count": 284719
+        }
+      ],
+      "properties": [],
+      "description": "Links the pipeline run that produced a deployment record.",
+      "dataSource": ""
+    },
+    {
+      "name": "DEPLOYED_TO",
+      "count": 284719,
+      "connections": [
+        {
+          "startLabels": [
+            "Deployment"
+          ],
+          "endLabels": [
+            "Environment"
+          ],
+          "count": 284719
+        }
+      ],
+      "properties": [],
+      "description": "The environment a deployment was shipped to.",
+      "dataSource": ""
+    }
+  ],
+  "indexes": [
+    {
+      "name": "user_email_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "User"
+      ],
+      "properties": [
+        "email"
+      ],
+      "state": "ONLINE",
+      "readCount": 841293,
+      "indexConfig": ""
+    },
+    {
+      "name": "user_username_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "User"
+      ],
+      "properties": [
+        "username"
+      ],
+      "state": "ONLINE",
+      "readCount": 2193847,
+      "indexConfig": ""
+    },
+    {
+      "name": "repo_fullname_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Repository"
+      ],
+      "properties": [
+        "fullName"
+      ],
+      "state": "ONLINE",
+      "readCount": 4821093,
+      "indexConfig": ""
+    },
+    {
+      "name": "commit_sha_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Commit"
+      ],
+      "properties": [
+        "sha"
+      ],
+      "state": "ONLINE",
+      "readCount": 8472931,
+      "indexConfig": ""
+    },
+    {
+      "name": "pipeline_status_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Pipeline"
+      ],
+      "properties": [
+        "status"
+      ],
+      "state": "ONLINE",
+      "readCount": 12847293,
+      "indexConfig": ""
+    },
+    {
+      "name": "pipeline_created_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Pipeline"
+      ],
+      "properties": [
+        "createdAt"
+      ],
+      "state": "ONLINE",
+      "readCount": 3918472,
+      "indexConfig": ""
+    },
+    {
+      "name": "workitem_state_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "WorkItem"
+      ],
+      "properties": [
+        "state"
+      ],
+      "state": "ONLINE",
+      "readCount": 7284193,
+      "indexConfig": ""
+    },
+    {
+      "name": "workitem_priority_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "WorkItem"
+      ],
+      "properties": [
+        "priority"
+      ],
+      "state": "ONLINE",
+      "readCount": 1847293,
+      "indexConfig": ""
+    },
+    {
+      "name": "job_stage_status_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Job"
+      ],
+      "properties": [
+        "stage",
+        "status"
+      ],
+      "state": "ONLINE",
+      "readCount": 9182734,
+      "indexConfig": ""
+    },
+    {
+      "name": "deployment_date_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Deployment"
+      ],
+      "properties": [
+        "deployedAt"
+      ],
+      "state": "ONLINE",
+      "readCount": 2847193,
+      "indexConfig": ""
+    },
+    {
+      "name": "workitem_search_idx",
+      "type": "FULLTEXT",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "WorkItem"
+      ],
+      "properties": [
+        "title",
+        "body"
+      ],
+      "state": "ONLINE",
+      "readCount": 482193,
+      "indexConfig": "{`fulltext.analyzer`: `standard-no-stop-words`, `fulltext.eventually_consistent`: false}"
+    },
+    {
+      "name": "repo_search_idx",
+      "type": "FULLTEXT",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "Repository"
+      ],
+      "properties": [
+        "name",
+        "description"
+      ],
+      "state": "ONLINE",
+      "readCount": 193847,
+      "indexConfig": "{`fulltext.analyzer`: `standard-no-stop-words`, `fulltext.eventually_consistent`: false}"
+    },
+    {
+      "name": "pr_state_idx",
+      "type": "RANGE",
+      "entityType": "node",
+      "labelsOrTypes": [
+        "PullRequest"
+      ],
+      "properties": [
+        "state"
+      ],
+      "state": "ONLINE",
+      "readCount": 5847193,
+      "indexConfig": ""
+    },
+    {
+      "name": "authored_rel_idx",
+      "type": "RANGE",
+      "entityType": "relationship",
+      "labelsOrTypes": [
+        "AUTHORED"
+      ],
+      "properties": [
+        "authoredAt"
+      ],
+      "state": "ONLINE",
+      "readCount": 0,
+      "indexConfig": ""
+    }
+  ],
+  "constraints": [
+    {
+      "name": "constraint_user_email_unique",
+      "type": "UNIQUENESS",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "User"
+      ],
+      "properties": [
+        "email"
+      ]
+    },
+    {
+      "name": "constraint_user_username_unique",
+      "type": "UNIQUENESS",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "User"
+      ],
+      "properties": [
+        "username"
+      ]
+    },
+    {
+      "name": "constraint_repo_fullname_unique",
+      "type": "UNIQUENESS",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "Repository"
+      ],
+      "properties": [
+        "fullName"
+      ]
+    },
+    {
+      "name": "constraint_commit_sha_unique",
+      "type": "UNIQUENESS",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "Commit"
+      ],
+      "properties": [
+        "sha"
+      ]
+    },
+    {
+      "name": "constraint_env_name_unique",
+      "type": "UNIQUENESS",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "Environment"
+      ],
+      "properties": [
+        "name"
+      ]
+    },
+    {
+      "name": "constraint_workitem_id_key",
+      "type": "NODE_KEY",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "WorkItem"
+      ],
+      "properties": [
+        "id"
+      ]
+    },
+    {
+      "name": "constraint_pipeline_id_key",
+      "type": "NODE_KEY",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "Pipeline"
+      ],
+      "properties": [
+        "id"
+      ]
+    },
+    {
+      "name": "constraint_pr_id_key",
+      "type": "NODE_KEY",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "PullRequest"
+      ],
+      "properties": [
+        "id"
+      ]
+    },
+    {
+      "name": "constraint_deployment_id_key",
+      "type": "NODE_KEY",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "Deployment"
+      ],
+      "properties": [
+        "id"
+      ]
+    },
+    {
+      "name": "constraint_workitem_priority_type",
+      "type": "NODE_PROPERTY_TYPE",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "WorkItem"
+      ],
+      "properties": [
+        "priority"
+      ]
+    },
+    {
+      "name": "constraint_deployment_status_exists",
+      "type": "NODE_PROPERTY_EXISTENCE",
+      "entityType": "NODE",
+      "labelsOrTypes": [
+        "Deployment"
+      ],
+      "properties": [
+        "status"
+      ]
+    },
+    {
+      "name": "constraint_reviewed_state_exists",
+      "type": "RELATIONSHIP_PROPERTY_EXISTENCE",
+      "entityType": "RELATIONSHIP",
+      "labelsOrTypes": [
+        "REVIEWED"
+      ],
+      "properties": [
+        "state"
+      ]
+    }
+  ],
+  "views": [
+    {
+      "name": "Identity & Access",
+      "description": "Who owns what. Users, bots, and repositories with their ownership and contribution relationships.",
+      "labels": [
+        "User",
+        "Bot",
+        "Repository",
+        "Public",
+        "Private",
+        "Archived"
+      ],
+      "relationshipTypes": [
+        "OWNS",
+        "CONTRIBUTES_TO"
+      ],
+      "layout": {
+        "nodes": {
+          "Archived": {
+            "x": 334.0,
+            "y": -227.0
+          },
+          "Bot": {
+            "x": -26.0,
+            "y": -227.0
+          },
+          "User": {
+            "x": -80.0,
+            "y": 0.0
+          }
+        },
+        "hierarchyMode": "boxes"
+      }
+    },
+    {
+      "name": "Source Control",
+      "description": "The code review lifecycle: branches, commits, pull requests, and the review workflow.",
+      "labels": [
+        "User",
+        "Repository",
+        "Branch",
+        "Commit",
+        "PullRequest",
+        "Draft"
+      ],
+      "relationshipTypes": [
+        "HAS_BRANCH",
+        "HAS_COMMIT",
+        "BASED_ON",
+        "AUTHORED",
+        "OPENED",
+        "TARGETS",
+        "INCLUDES",
+        "REVIEWED",
+        "REQUESTED_REVIEW_FROM"
+      ]
+    },
+    {
+      "name": "CI/CD Pipeline",
+      "description": "From commit to production: how a push flows through pipeline execution and lands in a deployment.",
+      "labels": [
+        "Commit",
+        "Pipeline",
+        "Job",
+        "Environment",
+        "Deployment"
+      ],
+      "relationshipTypes": [
+        "TRIGGERED",
+        "HAS_JOB",
+        "RUNS_ON",
+        "CREATED_DEPLOYMENT",
+        "DEPLOYED_TO"
+      ]
+    },
+    {
+      "name": "Work Tracking",
+      "description": "Issues, epics, and milestones: the planning hierarchy and how work items connect to pull requests and people.",
+      "labels": [
+        "User",
+        "WorkItem",
+        "PullRequest",
+        "Issue",
+        "Epic",
+        "Milestone"
+      ],
+      "relationshipTypes": [
+        "FILED",
+        "ASSIGNED_TO",
+        "LINKED_TO",
+        "BLOCKS",
+        "PART_OF",
+        "OPENED",
+        "REVIEWED",
+        "REQUESTED_REVIEW_FROM"
+      ],
+      "layout": {
+        "nodes": {
+          "User": {
+            "x": 260.0,
+            "y": -249.0
+          },
+          "PullRequest": {
+            "x": -140.0,
+            "y": -260.0
+          },
+          "Issue": {
+            "x": 234.0,
+            "y": 275.0
+          },
+          "Epic": {
+            "x": -6.0,
+            "y": 195.0
+          },
+          "Milestone": {
+            "x": 234.0,
+            "y": 195.0
+          }
         }
       }
     }
-  } ],
-  "$schema" : "skemadok/1.0"
+  ],
+  "$schema": "skemadok/1.0"
 }

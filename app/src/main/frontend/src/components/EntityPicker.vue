@@ -37,7 +37,7 @@
           :class="{ 'in-view': activeView?.relationshipTypes.includes(rel.name) }"
           @click="toggleRelationship(rel.name)"
         >
-          <span class="picker-name">{{ rel.name }}</span>
+          <span class="picker-name">{{ relDisplayName(rel) }}</span>
           <span class="picker-count" :title="rel.count?.toLocaleString()">{{ formatCount(rel.count) }}</span>
         </div>
         <div v-if="filteredRels.length === 0" class="empty-hint">No relationships</div>
@@ -53,7 +53,7 @@ import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import { useSchemaStore } from '../stores/schema.js'
-import { formatCount } from '../utils/format.js'
+import { formatCount, relDisplayName } from '../utils/format.js'
 
 const props = defineProps({
   activeView: { type: Object, default: null }

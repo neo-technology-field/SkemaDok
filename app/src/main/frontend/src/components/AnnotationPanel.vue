@@ -1,7 +1,7 @@
 <template>
   <aside class="annotation-panel">
     <div class="annotation-header">
-      <div class="annotation-name">{{ entity.name }}</div>
+      <div class="annotation-name">{{ isLabel ? entity.name : relDisplayName(entity) }}</div>
       <div class="annotation-meta">
         <span v-if="isLabel && entity.role && entity.role !== 'ENTITY'" class="chip chip-tag">
           {{ entity.role }}
@@ -186,7 +186,7 @@ import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import MultiSelect from 'primevue/multiselect'
 import { useSchemaStore } from '../stores/schema.js'
-import { formatCount } from '../utils/format.js'
+import { formatCount, relDisplayName } from '../utils/format.js'
 
 const props = defineProps({
   entity:       { type: Object,   required: true },

@@ -19,7 +19,7 @@
           <span class="group-label">{{ option.label }}</span>
         </template>
         <template #option="{ option }">
-          <span class="entity-name">{{ option.name }}</span>
+          <span class="entity-name">{{ labelNameSet.has(option.name) ? option.name : relDisplayName(option) }}</span>
           <span v-if="labelNameSet.has(option.name) && option.role && option.role !== 'ENTITY'" class="chip chip-tag">{{ option.role }}</span>
           <span v-if="labelNameSet.has(option.name)" class="rel-count" :title="option.nodeCount?.toLocaleString()">{{ formatCount(option.nodeCount) }}</span>
           <span v-else class="rel-count" :title="option.count?.toLocaleString()">{{ formatCount(option.count) }}</span>
@@ -30,7 +30,7 @@
     <!-- ---- Entity detail ---- -->
     <div v-if="selected" class="entity-detail">
       <div class="detail-header">
-        <div class="detail-name">{{ selected.entity.name }}</div>
+        <div class="detail-name">{{ selected.isLabel ? selected.entity.name : relDisplayName(selected.entity) }}</div>
         <div class="detail-meta">
           <template v-if="selected.isLabel">
             <span v-if="selected.entity.role && selected.entity.role !== 'ENTITY'" class="chip chip-tag">
@@ -116,15 +116,26 @@
         </DataTable>
       </div>
 
-      <!-- Type parameters (parameterized relationship types) -->
+      <!-- Type parameters (parameterised relationship types) -->
       <div v-if="selected.entity.typeParameters?.length" class="detail-section">
         <div class="section-label">Type parameters</div>
         <div class="type-params-hint">
-          This relationship type is parameterized.
+          Parameterised: <code>{{ relDisplayName(selected.entity) }}</code>.
           Examples: {{ selected.entity.instances?.slice(0, 3).join(', ') }}{{ selected.entity.instances?.length > 3 ? '…' : '' }}
         </div>
         <DataTable :value="selected.entity.typeParameters" size="small" class="props-table" style="margin-top: 10px">
           <Column field="position" header="Pos" style="width: 3rem" />
+          <Column header="Variable name" style="min-width: 8rem">
+            <template #body="{ data }">
+              <InputText
+                v-model="data.name"
+                :placeholder="'v' + (data.position + 1)"
+                size="small"
+                fluid
+                @blur="() => saveParamName(data, data.name)"
+              />
+            </template>
+          </Column>
           <Column header="Example values">
             <template #body="{ data }">
               <span class="prop-type-cell">{{ data.exampleValues?.slice(0, 4).join(', ') }}</span>
@@ -159,7 +170,7 @@ import Textarea from 'primevue/textarea'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import { useSchemaStore } from '../stores/schema.js'
-import { formatCount } from '../utils/format.js'
+import { formatCount, relDisplayName } from '../utils/format.js'
 
 const store = useSchemaStore()
 
@@ -212,6 +223,11 @@ function savePropDescription(prop, description) {
 function savePropDataSource(prop, dataSource) {
   if (!selected.value) return
   prop.dataSource = dataSource
+  store.markEdited()
+}
+
+function saveParamName(param, name) {
+  param.name = name || ('v' + (param.position + 1))
   store.markEdited()
 }
 

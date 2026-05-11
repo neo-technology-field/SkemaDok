@@ -69,7 +69,7 @@
 <h2>Relationship Types</h2>
 <#list doc.relationshipTypes as rel>
 <#assign viewNames = relMembership[rel.name]![] />
-<h3><code>${rel.name?html}</code></h3>
+<h3><code>${rel.displayName?html}</code></h3>
 <p>${rel.count} relationships<#if viewNames?has_content> | <em>Appears in: ${viewNames?join(", ")?html}</em></#if></p>
 <#if rel.connections?has_content>
 <ul>
@@ -83,6 +83,18 @@
 </#if>
 <#if rel.description?has_content>
 <p>${rel.description?html}</p>
+</#if>
+<#if rel.parameterized>
+<#assign shownCount = [rel.instances?size, 5]?min>
+<p><em>Parameterised type. Raw type names encode runtime metadata in the suffix. Representative names: <code>${rel.instances[0..<shownCount]?join("</code>, <code>")}</code><#if rel.instances?size gt 5> (+${rel.instances?size - 5} more)</#if></em></p>
+<table>
+<thead><tr><th>Slot</th><th>Name</th><th>Description</th><th>Example values</th></tr></thead>
+<tbody>
+<#list rel.typeParameters as param>
+<tr><td>${param.position + 1}</td><td><code>${param.name?html}</code></td><td>${param.description?html}</td><td><code>${param.exampleValues?join("</code>, <code>")}</code></td></tr>
+</#list>
+</tbody>
+</table>
 </#if>
 <#if rel.properties?has_content>
 <table>

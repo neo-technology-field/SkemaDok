@@ -130,7 +130,7 @@ public class DocxGenerator extends AbstractDocumentGenerator {
 
     private void appendRelDocx(XWPFDocument document, RelationshipTypeInfo rel,
                                List<String> viewNames, GenerateOptions options) {
-        addHeading(document, rel.getName(), 3);
+        addHeading(document, rel.getDisplayName(), 3);
         String meta = rel.getCount() + " relationships";
         if (!viewNames.isEmpty()) {
             meta += "  |  Appears in: " + String.join(", ", viewNames);
@@ -141,7 +141,28 @@ public class DocxGenerator extends AbstractDocumentGenerator {
             var end = ":" + String.join(" | :", conn.endLabels());
             addParagraph(document, "(" + start + ")-[:" + rel.getName() + "]->(" + end + ") — " + conn.count());
         }
+        if (rel.isParameterized()) {
+            addTypeParameterTable(document, rel);
+        }
         addRelParagraph(document, options, rel.getDataSource(), rel.getDescription(), rel.getProperties());
+    }
+
+    private void addTypeParameterTable(XWPFDocument document, RelationshipTypeInfo rel) {
+        int shown = Math.min(rel.getInstances().size(), 5);
+        String examples = String.join(", ", rel.getInstances().subList(0, shown));
+        if (rel.getInstances().size() > 5) {
+            examples += " (+" + (rel.getInstances().size() - 5) + " more)";
+        }
+        addParagraph(document, "Parameterised type. Representative names: " + examples);
+        var headers = List.of("Slot", "Name", "Description", "Example values");
+        var rows = rel.getTypeParameters().stream()
+                .map(p -> List.of(
+                        String.valueOf(p.position() + 1),
+                        p.name(),
+                        p.description(),
+                        String.join(", ", p.exampleValues())))
+                .toList();
+        addTable(document, headers, rows);
     }
 
     private void addRelParagraph(XWPFDocument document,
@@ -347,7 +368,7 @@ public class DocxGenerator extends AbstractDocumentGenerator {
     @Override
     protected String renderRelBlock(RelationshipTypeInfo rel, List<String> viewNames, GenerateOptions options) {
         var sb = new StringBuilder();
-        sb.append("<h3>").append(htmlEsc(rel.getName())).append("</h3>\n");
+        sb.append("<h3>").append(htmlEsc(rel.getDisplayName())).append("</h3>\n");
         sb.append("<p>").append(rel.getCount()).append(" relationships");
         if (!viewNames.isEmpty()) {
             sb.append(" | <em>Appears in: ").append(htmlEsc(String.join(", ", viewNames))).append("</em>");
@@ -369,6 +390,23 @@ public class DocxGenerator extends AbstractDocumentGenerator {
         }
         if (!rel.getDescription().isBlank()) {
             sb.append("<p>").append(htmlEsc(rel.getDescription())).append("</p>\n");
+        }
+        if (rel.isParameterized()) {
+            int shown = Math.min(rel.getInstances().size(), 5);
+            String examples = String.join(", ", rel.getInstances().subList(0, shown));
+            if (rel.getInstances().size() > 5) {
+                examples += " (+" + (rel.getInstances().size() - 5) + " more)";
+            }
+            sb.append("<p><em>Parameterised type. Representative names: <code>")
+                    .append(htmlEsc(examples)).append("</code></em></p>\n");
+            sb.append("<table><thead><tr><th>Slot</th><th>Name</th><th>Description</th><th>Example values</th></tr></thead><tbody>\n");
+            for (var p : rel.getTypeParameters()) {
+                sb.append("<tr><td>").append(p.position() + 1).append("</td>")
+                        .append("<td><code>").append(htmlEsc(p.name())).append("</code></td>")
+                        .append("<td>").append(htmlEsc(p.description())).append("</td>")
+                        .append("<td><code>").append(p.exampleValues().stream().map(v -> htmlEsc(v)).collect(java.util.stream.Collectors.joining("</code>, <code>"))).append("</code></td></tr>\n");
+            }
+            sb.append("</tbody></table>\n");
         }
         if (!rel.getProperties().isEmpty()) {
             sb.append(propertyTableHtml(rel.getProperties(), options));
