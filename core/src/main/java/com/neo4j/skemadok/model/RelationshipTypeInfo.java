@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Metadata for a single relationship type.
@@ -141,6 +142,21 @@ public class RelationshipTypeInfo {
     @JsonIgnore
     public boolean isParameterized() {
         return typeParameters != null;
+    }
+
+    /**
+     * Human-readable display name that encodes the variable slots.
+     * Plain types return {@code name} unchanged.
+     * Parameterised types return e.g. {@code WORKS_FOR_{year}_{quarter}}.
+     */
+    @JsonIgnore
+    public String getDisplayName() {
+        if (!isParameterized()) {
+            return name;
+        }
+        return name + typeParameters.stream()
+                .map(p -> "_{" + p.name() + "}")
+                .collect(Collectors.joining());
     }
 
     public List<String> getDisplayProperties() {

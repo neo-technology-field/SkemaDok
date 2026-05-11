@@ -76,7 +76,11 @@ GRANT SHOW CONSTRAINT ON DATABASE * TO reader;
 * Indexes, including usage counts
 
 In addition, a heuristic is used to group relationships for those data models that use variable parts in the relationship types.
-`REL_2026_04`, `REL_2026_05`
+`REL_2026_04`, `REL_2026_05`. The user can later rename the generic `v1` placeholder to something meaningful.
+See picture below as an example.
+
+![Relation with parameters](docs/rel_parameters.png)
+
 
 ## Annotating the schema
 
