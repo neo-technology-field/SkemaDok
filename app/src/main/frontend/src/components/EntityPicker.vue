@@ -20,7 +20,7 @@
           :class="{ 'in-view': activeView?.labels.includes(label.name) }"
           :draggable="!!activeView"
           @dragstart="onLabelDragStart($event, label.name)"
-          @click="toggleLabel(label.name)"
+          @click="toggleLabel($event, label.name)"
         >
           <span class="picker-name">{{ label.name }}</span>
           <span v-if="label.role && label.role !== 'ENTITY'" class="chip chip-tag">{{ label.role }}</span>
@@ -76,12 +76,12 @@ const filteredRels = computed(() => {
   return store.relationshipTypes.filter(r => !q || r.name.toLowerCase().includes(q))
 })
 
-function toggleLabel(labelName) {
+function toggleLabel(event, labelName) {
   if (!props.activeView) return
   const idx = props.activeView.labels.indexOf(labelName)
   if (idx === -1) {
     props.activeView.labels.push(labelName)
-    autoSelectRels()
+    if (!event.ctrlKey) autoSelectRels()
     emit('label-added', labelName)
   } else {
     props.activeView.labels.splice(idx, 1)
