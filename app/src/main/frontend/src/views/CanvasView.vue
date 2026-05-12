@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSchemaStore } from '../stores/schema.js'
 import ViewListPanel  from '../components/ViewListPanel.vue'
 import EntityPicker   from '../components/EntityPicker.vue'
@@ -119,6 +119,27 @@ function onCanvasDrop(event) {
     }
   }
 }
+
+function onKeyDown(event) {
+  if (event.key !== 'Delete') return
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+  if (!activeView.value || !selectedEntity.value) return
+
+  const name = selectedEntity.value.name
+  if (selectedIsLabel.value) {
+    const idx = activeView.value.labels.indexOf(name)
+    if (idx !== -1) activeView.value.labels.splice(idx, 1)
+  } else {
+    const idx = activeView.value.relationshipTypes.indexOf(name)
+    if (idx !== -1) activeView.value.relationshipTypes.splice(idx, 1)
+  }
+  selectedEntity.value = null
+  store.markEdited()
+}
+
+onMounted(() => document.addEventListener('keydown', onKeyDown))
+onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 </script>
 
 <style scoped>
