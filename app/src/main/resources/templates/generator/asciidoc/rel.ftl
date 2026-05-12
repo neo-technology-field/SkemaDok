@@ -1,4 +1,4 @@
-=== ${rel.name}
+=== ${rel.displayName}
 
 ${rel.count} relationships<#if viewNames?has_content> | _Appears in: ${viewNames?join(", ")}_</#if>
 
@@ -20,12 +20,12 @@ ${rel.description}
 <#assign shownCount = [rel.instances?size, 5]?min>
 NOTE: Parameterised type. Raw type names encode runtime metadata in the suffix. Representative names: `${rel.instances[0..<shownCount]?join("`, `")}`<#if rel.instances?size gt 5> (+${rel.instances?size - 5} more)</#if>
 
-[%header,cols="1,3,3"]
+[%header,cols="1,2,3,3"]
 |===
-|Slot|Description|Example values
+|Slot|Name|Description|Example values
 
 <#list rel.typeParameters as param>
-|${param.position + 1}|${param.description}|`${param.exampleValues?join("`, `")}`
+|${param.position + 1}|`${param.name}`|${param.description}|`${param.exampleValues?join("`, `")}`
 </#list>
 |===
 

@@ -84,6 +84,7 @@ import GroupNode from './GroupNode.vue'
 import { useSchemaStore } from '../stores/schema.js'
 import ContextMenu from 'primevue/contextmenu'
 import { computeElkLayout } from '../composables/useElkLayout.js'
+import { relDisplayName } from '../utils/format.js'
 
 const props = defineProps({
   view: { type: Object, required: true }
@@ -377,7 +378,7 @@ const flowEdges = computed(() => {
           const key = `${relName}|${effectiveStart}|${effectiveEnd}`
           if (seen.has(key)) continue
           seen.add(key)
-          candidates.push({ relName, start: effectiveStart, end: effectiveEnd, displayProperties: rel.displayProperties ?? [], annotatedDisplayProps: annotateProps(relName, rel.displayProperties) })
+          candidates.push({ relName, displayName: relDisplayName(rel), start: effectiveStart, end: effectiveEnd, displayProperties: rel.displayProperties ?? [], annotatedDisplayProps: annotateProps(relName, rel.displayProperties) })
         }
       }
     }
@@ -409,7 +410,7 @@ const flowEdges = computed(() => {
         target: c.end,
         type:   'polylineEdge',
         data:   {
-          label: c.relName, parallelOffset,
+          label: c.displayName, parallelOffset,
           selfLoopIndex: isSelf ? idx : undefined,
           displayProperties:    c.displayProperties,
           annotatedDisplayProps: c.annotatedDisplayProps,

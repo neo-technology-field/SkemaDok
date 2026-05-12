@@ -119,8 +119,8 @@ public class SchemaMerger {
     }
 
     /**
-     * Copies user-provided descriptions for type parameter slots from the old entry.
-     * Matched by position; unmatched positions in the new entry are left blank.
+     * Copies user-provided variable names and descriptions for type parameter slots from the old entry.
+     * Matched by position; unmatched positions in the new entry are left as-is.
      */
     private void mergeTypeParameterAnnotations(List<TypeParameter> oldParams, List<TypeParameter> newParams) {
         if (oldParams == null || newParams == null) return;
@@ -129,8 +129,18 @@ public class SchemaMerger {
         for (int i = 0; i < newParams.size(); i++) {
             TypeParameter newParam = newParams.get(i);
             TypeParameter old = oldByPosition.get(newParam.position());
-            if (old != null && !old.description().isBlank()) {
-                newParams.set(i, newParam.withDescription(old.description()));
+            if (old == null) continue;
+            var updated = newParam;
+            // Preserve user-assigned name when it differs from the positional default
+            String defaultName = "v" + (newParam.position() + 1);
+            if (!old.name().equals(defaultName)) {
+                updated = updated.withName(old.name());
+            }
+            if (!old.description().isBlank()) {
+                updated = updated.withDescription(old.description());
+            }
+            if (updated != newParam) {
+                newParams.set(i, updated);
             }
         }
     }

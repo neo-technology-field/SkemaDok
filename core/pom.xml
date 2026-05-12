@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.neo4j</groupId>
         <artifactId>skemadok-parent</artifactId>
-        <version>0.2.0-SNAPSHOT</version>
+        <version>0.4.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>skemadok-core</artifactId>

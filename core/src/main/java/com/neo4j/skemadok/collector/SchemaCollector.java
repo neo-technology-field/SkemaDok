@@ -303,9 +303,12 @@ public class SchemaCollector {
                 ));
 
         var relTypeGrouper = new RelTypeGrouper();
-        var useFullScan = relTypeGrouper.detectsGroups(propsByType.keySet(), groupThreshold);
+        var groupSizes = relTypeGrouper.detectedGroupSizes(propsByType.keySet(), groupThreshold);
+        var useFullScan = !groupSizes.isEmpty();
         if (useFullScan) {
-            log.info("Relationship strategy: full graph scan (parameterised groups detected)");
+            log.info("Relationship strategy: full graph scan ({} parameterised groups detected)", groupSizes.size());
+            groupSizes.forEach((base, size) ->
+                    log.info("  Parameterised group: {} ({} variants)", base, size));
         } else {
             log.info("Relationship strategy: per-type queries ({} types)", propsByType.size());
         }
@@ -362,7 +365,6 @@ public class SchemaCollector {
         var counts = new HashMap<String, Long>();
         var connections = new HashMap<String, List<Connection>>();
         try {
-            log.info("Running full relationship scan — this may take a while on large graphs...");
             var startTime = System.currentTimeMillis();
             var rowsByType = session.executeRead(tx -> tx.run("""
                             MATCH (start)-[relationship]->(end)
