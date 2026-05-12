@@ -13,6 +13,7 @@
   change (debounced 600 ms). The layout is loaded from view.layout on mount.
 -->
 <template>
+  <div class="graph-root">
   <VueFlow
     :key="view.name"
     :nodes="flowNodes"
@@ -31,6 +32,8 @@
     @node-click="onNodeClick"
     @edge-click="onEdgeClick"
     @pane-click="onPaneClick"
+    @node-context-menu="onNodeContextMenu"
+    @edge-context-menu="onEdgeContextMenu"
   >
     <Background pattern-color="#3a3d60" :gap="24" />
     <Controls position="top-right" :show-interactive="false">
@@ -65,6 +68,8 @@
       </div>
     </Panel>
   </VueFlow>
+  <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
+  </div>
 </template>
 
 <script setup>
@@ -77,6 +82,7 @@ import PolylineEdge from './PolylineEdge.vue'
 import InheritanceEdge from './InheritanceEdge.vue'
 import GroupNode from './GroupNode.vue'
 import { useSchemaStore } from '../stores/schema.js'
+import ContextMenu from 'primevue/contextmenu'
 import { computeElkLayout } from '../composables/useElkLayout.js'
 
 const props = defineProps({
@@ -109,6 +115,9 @@ const LAYOUT_ALGOS = [
   { value: 'stress',  label: 'Stress'  },
 ]
 const layoutAlgo = ref('force')
+
+const contextMenuRef   = ref(null)
+const contextMenuItems = ref([])
 
 watch(() => props.view.name, () => {
   savedPositions.value = Object.assign({}, props.view.layout?.nodes         ?? {})
@@ -685,6 +694,74 @@ function onEdgeClick({ edge }) {
 function onPaneClick() {
   emit('select', null)
 }
+
+// ---- Context menu ------------------------------------------------------
+
+function onNodeContextMenu({ node, event }) {
+  event.preventDefault()
+  const labelName = node.id
+  contextMenuItems.value = [
+    {
+      label: 'Delete',
+      command: () => {
+        const idx = props.view.labels.indexOf(labelName)
+        if (idx !== -1) {
+          props.view.labels.splice(idx, 1)
+          emit('select', null)
+          debouncedSave()
+        }
+      }
+    },
+    {
+      label: 'Add Related Relationships',
+      command: () => {
+        for (const r of store.relationshipTypes) {
+          if (props.view.relationshipTypes.includes(r.name)) continue
+          if ((r.connections ?? []).some(conn =>
+              conn.startLabels.includes(labelName) || conn.endLabels.includes(labelName))) {
+            props.view.relationshipTypes.push(r.name)
+          }
+        }
+        debouncedSave()
+      }
+    }
+  ]
+  contextMenuRef.value.show(event)
+}
+
+function onEdgeContextMenu({ edge, event }) {
+  if (edge.id.startsWith('__extends__')) return
+  event.preventDefault()
+  const relName = edge.data?.label
+  contextMenuItems.value = [
+    {
+      label: 'Delete',
+      command: () => {
+        const idx = props.view.relationshipTypes.indexOf(relName)
+        if (idx !== -1) {
+          props.view.relationshipTypes.splice(idx, 1)
+          emit('select', null)
+          debouncedSave()
+        }
+      }
+    },
+    {
+      label: 'Add Related Labels',
+      command: () => {
+        const rel = store.relationshipTypes.find(r => r.name === relName)
+        if (rel) {
+          for (const conn of (rel.connections ?? [])) {
+            for (const labelName of [...conn.startLabels, ...conn.endLabels]) {
+              addLabelToView(labelName)
+            }
+          }
+        }
+      }
+    }
+  ]
+  contextMenuRef.value.show(event)
+}
+
 </script>
 
 <style scoped>
@@ -757,5 +834,10 @@ function onPaneClick() {
 
 .algo-select:focus {
   outline: none;
+}
+.graph-root {
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 </style>
