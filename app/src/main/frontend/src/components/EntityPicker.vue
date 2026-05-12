@@ -35,7 +35,7 @@
           :key="rel.name"
           class="picker-item"
           :class="{ 'in-view': activeView?.relationshipTypes.includes(rel.name) }"
-          @click="toggleRelationship(rel.name)"
+          @click="toggleRelationship($event, rel.name)"
         >
           <span class="picker-name">{{ rel.name }}</span>
           <span class="picker-count" :title="rel.count?.toLocaleString()">{{ formatCount(rel.count) }}</span>
@@ -90,17 +90,19 @@ function toggleLabel(event, labelName) {
   store.markEdited()
 }
 
-function toggleRelationship(relName) {
+function toggleRelationship(event, relName) {
   if (!props.activeView) return
   const idx = props.activeView.relationshipTypes.indexOf(relName)
   if (idx === -1) {
     props.activeView.relationshipTypes.push(relName)
-    const rel = store.relationshipTypes.find(r => r.name === relName)
-    if (rel) {
-      for (const conn of (rel.connections ?? [])) {
-        for (const labelName of [...conn.startLabels, ...conn.endLabels]) {
-          if (!props.activeView.labels.includes(labelName)) {
-            props.activeView.labels.push(labelName)
+    if (!event.ctrlKey) {
+      const rel = store.relationshipTypes.find(r => r.name === relName)
+      if (rel) {
+        for (const conn of (rel.connections ?? [])) {
+          for (const labelName of [...conn.startLabels, ...conn.endLabels]) {
+            if (!props.activeView.labels.includes(labelName)) {
+              props.activeView.labels.push(labelName)
+            }
           }
         }
       }
