@@ -20,7 +20,7 @@
           :class="{ 'in-view': activeView?.labels.includes(label.name) }"
           :draggable="!!activeView"
           @dragstart="onLabelDragStart($event, label.name)"
-          @click="toggleLabel(label.name)"
+          @click="toggleLabel($event, label.name)"
         >
           <span class="picker-name">{{ label.name }}</span>
           <span v-if="label.role && label.role !== 'ENTITY'" class="chip chip-tag">{{ label.role }}</span>
@@ -35,7 +35,7 @@
           :key="rel.name"
           class="picker-item"
           :class="{ 'in-view': activeView?.relationshipTypes.includes(rel.name) }"
-          @click="toggleRelationship(rel.name)"
+          @click="toggleRelationship($event, rel.name)"
         >
           <span class="picker-name">{{ relDisplayName(rel) }}</span>
           <span class="picker-count" :title="rel.count?.toLocaleString()">{{ formatCount(rel.count) }}</span>
@@ -76,12 +76,12 @@ const filteredRels = computed(() => {
   return store.relationshipTypes.filter(r => !q || r.name.toLowerCase().includes(q))
 })
 
-function toggleLabel(labelName) {
+function toggleLabel(event, labelName) {
   if (!props.activeView) return
   const idx = props.activeView.labels.indexOf(labelName)
   if (idx === -1) {
     props.activeView.labels.push(labelName)
-    autoSelectRels()
+    if (!event.ctrlKey) autoSelectRels()
     emit('label-added', labelName)
   } else {
     props.activeView.labels.splice(idx, 1)
@@ -90,17 +90,19 @@ function toggleLabel(labelName) {
   store.markEdited()
 }
 
-function toggleRelationship(relName) {
+function toggleRelationship(event, relName) {
   if (!props.activeView) return
   const idx = props.activeView.relationshipTypes.indexOf(relName)
   if (idx === -1) {
     props.activeView.relationshipTypes.push(relName)
-    const rel = store.relationshipTypes.find(r => r.name === relName)
-    if (rel) {
-      for (const conn of (rel.connections ?? [])) {
-        for (const labelName of [...conn.startLabels, ...conn.endLabels]) {
-          if (!props.activeView.labels.includes(labelName)) {
-            props.activeView.labels.push(labelName)
+    if (!event.ctrlKey) {
+      const rel = store.relationshipTypes.find(r => r.name === relName)
+      if (rel) {
+        for (const conn of (rel.connections ?? [])) {
+          for (const labelName of [...conn.startLabels, ...conn.endLabels]) {
+            if (!props.activeView.labels.includes(labelName)) {
+              props.activeView.labels.push(labelName)
+            }
           }
         }
       }
