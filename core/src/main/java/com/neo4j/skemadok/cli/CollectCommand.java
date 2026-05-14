@@ -49,7 +49,7 @@ public class CollectCommand implements Callable<Integer> {
             defaultValue = "" + RelTypeGrouper.DEFAULT_THRESHOLD,
             description = "Minimum number of instances required to collapse a family of "
                     + "parameterised relationship type names (e.g. REL_2024_01, REL_2024_02) "
-                    + "into a single canonical entry. Lower values group more aggressively; "
+                    + "into a single grouped entry. Lower values group more aggressively; "
                     + "use 0 to disable grouping entirely. (default: ${DEFAULT-VALUE})")
     private int groupThreshold;
 

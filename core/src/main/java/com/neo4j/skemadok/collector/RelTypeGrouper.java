@@ -9,7 +9,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Detects and collapses parameterised relationship type names into canonical entries.
+ * Detects and collapses parameterised relationship type names into grouped entries.
  *
  * <h2>The problem</h2>
  * Some schemas encode runtime metadata directly in the relationship type name, e.g.
@@ -32,8 +32,14 @@ public class RelTypeGrouper {
     public static final int DEFAULT_THRESHOLD = 10;
 
     /**
+     * Key for grouping connections by label sets, excluding count from equality.
+     */
+    private record ConnectionKey(List<String> startLabels, List<String> endLabels) {
+    }
+
+    /**
      * Groups raw relationship types, returning a new list where parameterised families
-     * at or above {@code minGroupSize} are replaced by a single canonical entry.
+     * at or above {@code minGroupSize} are replaced by a single grouped entry.
      * Types below the threshold pass through unchanged. The result is sorted by name.
      *
      * @param rawTypes     relationship types as returned by the collector
@@ -63,7 +69,7 @@ public class RelTypeGrouper {
             if (members.size() < minGroupSize) {
                 result.addAll(members);
             } else {
-                result.add(buildCanonical(members, base));
+                result.add(buildGrouped(base, members));
             }
         }
 
@@ -146,11 +152,47 @@ public class RelTypeGrouper {
         return null;
     }
 
-    private RelationshipTypeInfo buildCanonical(List<RelationshipTypeInfo> members, String base) {
-        var first = members.getFirst();
-        int baseSegCount = base.split("_").length;
-        int varCount = first.getName().split("_").length - baseSegCount;
+    /**
+     * Builds a grouped entry from precomputed stats. Used by the collector when
+     * counts and connections come from a group-level graph scan rather than from
+     * per-individual-type stats. Type-parameter slots and instance names are derived
+     * from {@code memberNames} alone.
+     */
+    RelationshipTypeInfo buildGrouped(
+            String base,
+            List<String> memberNames,
+            List<PropertyInfo> mergedProperties,
+            long totalCount,
+            List<Connection> connections) {
 
+        int baseSegCount = base.split("_").length;
+        int varCount = memberNames.getFirst().split("_").length - baseSegCount;
+
+        var typeParams = new ArrayList<TypeParameter>();
+        for (int i = 0; i < varCount; i++) {
+            final int segIdx = baseSegCount + i;
+            var examples = memberNames.stream()
+                    .map(name -> name.split("_")[segIdx])
+                    .distinct().sorted().limit(5)
+                    .toList();
+            typeParams.add(new TypeParameter(i, examples));
+        }
+
+        return new RelationshipTypeInfo(
+                base, totalCount, connections,
+                new ArrayList<>(mergedProperties),
+                typeParams,
+                memberNames.stream().sorted().toList()
+        );
+    }
+
+    /**
+     * Builds a grouped entry from per-individual-type {@link RelationshipTypeInfo} objects.
+     * Merges counts, connections, and properties across all members, then delegates to
+     * {@link #buildGrouped(String, List, List, long, List)} for name-based structure.
+     * Used by {@link #group} when per-type stats are already available.
+     */
+    private RelationshipTypeInfo buildGrouped(String base, List<RelationshipTypeInfo> members) {
         long totalCount = members.stream().mapToLong(RelationshipTypeInfo::getCount).sum();
 
         // Merge connections from all group members. Connection equality includes count, so we
@@ -176,29 +218,12 @@ public class RelTypeGrouper {
             }
         }
 
-        var typeParams = new ArrayList<TypeParameter>();
-        for (int i = 0; i < varCount; i++) {
-            final int segIdx = baseSegCount + i;
-            var examples = members.stream()
-                    .map(rt -> rt.getName().split("_")[segIdx])
-                    .distinct().sorted().limit(5)
-                    .toList();
-            typeParams.add(new TypeParameter(i, examples));
-        }
-
-        var instanceNames = members.stream()
-                .map(RelationshipTypeInfo::getName)
-                .sorted()
-                .toList();
-
-        return new RelationshipTypeInfo(
-                base, totalCount,
-                mergedConnections,
+        return buildGrouped(
+                base,
+                members.stream().map(RelationshipTypeInfo::getName).toList(),
                 new ArrayList<>(mergedProps.values()),
-                typeParams, instanceNames
+                totalCount,
+                mergedConnections
         );
     }
-
-    /** Key for grouping connections by label sets, excluding count from equality. */
-    private record ConnectionKey(List<String> startLabels, List<String> endLabels) {}
 }

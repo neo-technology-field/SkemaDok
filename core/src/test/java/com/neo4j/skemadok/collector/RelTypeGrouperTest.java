@@ -178,6 +178,35 @@ class RelTypeGrouperTest {
         assertEquals("ZEBRA", result.get(1).getName());
     }
 
+    // ---- buildGrouped (from precomputed stats) ----------------------------
+
+    @Test
+    void buildGroupedFromStatsSetsNameAndCount() {
+        var result = grouper.buildGrouped("ORDER", List.of("ORDER_1", "ORDER_2", "ORDER_3"),
+                List.of(), 350L, List.of());
+        assertEquals("ORDER", result.getName());
+        assertEquals(350L, result.getCount());
+    }
+
+    @Test
+    void buildGroupedFromStatsSetsConnectionsAndInstancesSorted() {
+        var connections = List.of(new Connection(List.of("Customer"), List.of("Product"), 350L));
+        var result = grouper.buildGrouped("ORDER", List.of("ORDER_3", "ORDER_1", "ORDER_2"),
+                List.of(), 350L, connections);
+        assertEquals(connections, result.getConnections());
+        assertEquals(List.of("ORDER_1", "ORDER_2", "ORDER_3"), result.getInstances());
+    }
+
+    @Test
+    void buildGroupedFromStatsDerivesTypeParametersFromMemberNames() {
+        var result = grouper.buildGrouped("ORDER",
+                List.of("ORDER_2024_Q1", "ORDER_2024_Q2", "ORDER_2025_Q1"),
+                List.of(), 0L, List.of());
+        assertEquals(2, result.getTypeParameters().size());
+        assertTrue(result.getTypeParameters().getFirst().exampleValues().containsAll(List.of("2024", "2025")));
+        assertTrue(result.getTypeParameters().get(1).exampleValues().containsAll(List.of("Q1", "Q2")));
+    }
+
     // ---- detectsGroups ------------------------------------------------------
 
     @Test

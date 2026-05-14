@@ -49,7 +49,7 @@ public class SchemaCollector {
      * @param password       database password
      * @param database       target database name
      * @param groupThreshold minimum number of instances required to collapse a family of
-     *                       parameterised relationship type names into a single canonical entry
+     *                       parameterised relationship type names into a single grouped entry
      * @return collected schema document; user annotations are added later via the UI
      */
     public SchemaDocument collect(String uri, String username, String password, String database, int groupThreshold) {
@@ -71,7 +71,7 @@ public class SchemaCollector {
 
         var relTypeGrouper = new RelTypeGrouper();
 
-        doc.setRelationshipTypes(relTypeGrouper.group(collectRelationshipTypes(session, groupThreshold), groupThreshold));
+        doc.setRelationshipTypes(relTypeGrouper.group(collectRelationshipInformation(session, groupThreshold), groupThreshold));
         doc.setIndexes(collectIndexes(session));
         doc.setConstraints(collectConstraints(session));
         return doc;
@@ -80,7 +80,7 @@ public class SchemaCollector {
     private List<LabelInfo> collectLabels(Session session) {
 
         log.info("Collecting labels...");
-        var labelSchema = collectLabelProperties(session);
+        var labelSchema = collectLabelInformation(session);
         var labelPairs = collectLabelPairs(session);
         var labelInfos = new ArrayList<LabelInfo>();
 
@@ -184,7 +184,7 @@ public class SchemaCollector {
      * tag (e.g. {@code :PressRelease}, {@code :Admin}) and is auto-classified as
      * {@link LabelRole#TAG} by the caller.
      */
-    private LabelSchema collectLabelProperties(Session session) {
+    private LabelSchema collectLabelInformation(Session session) {
 
         var rawByLabel = session.executeRead(tx -> tx.run("""
                         CALL db.schema.nodeTypeProperties()
@@ -196,16 +196,7 @@ public class SchemaCollector {
                 .collect(Collectors.groupingBy(
                         r -> r.get("label").asString(),
                         LinkedHashMap::new,
-                        Collectors.mapping(r -> {
-                            var typesValue = r.get("propertyTypes");
-                            var types = typesValue.isNull() ? List.<String>of() : typesValue.asList(Value::asString);
-                            return new RawPropertyRow(
-                                    r.get("propertyName").asString(""),
-                                    types,
-                                    r.get("mandatory").asBoolean(false),
-                                    r.get("labelCount").asInt()
-                            );
-                        }, Collectors.toList())
+                        Collectors.mapping(r -> toRawPropertyRow(r, r.get("labelCount").asInt()), Collectors.toList())
                 ));
 
         var properties = new LinkedHashMap<String, List<PropertyInfo>>();
@@ -223,6 +214,24 @@ public class SchemaCollector {
         return new LabelSchema(properties, appearsAlone);
     }
 
+
+    /**
+     * Maps a driver record from db.schema.nodeTypeProperties() or db.schema.relTypeProperties()
+     * to a {@link RawPropertyRow}.
+     *
+     * @param labelCount the number of labels in the originating nodeLabels combination, or 1 for
+     *                   relationship type rows (which are always single-valued and fully authoritative).
+     */
+    private RawPropertyRow toRawPropertyRow(org.neo4j.driver.Record record, int labelCount) {
+        var typesValue = record.get("propertyTypes");
+        var types = typesValue.isNull() ? List.<String>of() : typesValue.asList(Value::asString);
+        return new RawPropertyRow(
+                record.get("propertyName").asString(""),
+                types,
+                record.get("mandatory").asBoolean(false),
+                labelCount
+        );
+    }
 
     /**
      * Deduplicates raw property rows that share the same name after UNWIND, merging their
@@ -266,16 +275,14 @@ public class SchemaCollector {
      * which can return stale or over-approximate results. Two code paths are used:
      * <ul>
      *   <li>Per-type queries (default): one MATCH per type, accurate and targeted.</li>
-     *   <li>Full scan: one MATCH over all relationships, used when parameterised type groups are
-     *       detected and the number of individual types would make per-type round trips impractical.</li>
+     *   <li>Per-group scans: one MATCH per detected parameterised group, used when the number of
+     *       individual types would make per-type round trips impractical. Non-parameterised types
+     *       still use per-type queries.</li>
      * </ul>
      */
-    private List<RelationshipTypeInfo> collectRelationshipTypes(Session session, int groupThreshold) {
-        log.info("Collecting relationship types...");
-        // Group raw rows per rel type, then merge duplicates (same property name, different
-        // mandatory/types across node-pair patterns). Relationship types are single-valued so
-        // every row is treated as authoritative for mandatory — equivalent to labelCount=1.
-        var propsByType = session.executeRead(tx -> tx.run("""
+    private List<RelationshipTypeInfo> collectRelationshipInformation(Session session, int groupThreshold) {
+        log.info("Collecting ovrview of relationships and their property types...");
+        var rawByType = session.executeRead(tx -> tx.run("""
                         CALL db.schema.relTypeProperties()
                         YIELD relType, propertyName, propertyTypes, mandatory
                         RETURN relType, propertyName, propertyTypes, mandatory
@@ -284,48 +291,66 @@ public class SchemaCollector {
                 .collect(Collectors.groupingBy(
                         r -> cleanRelType(r.get("relType").asString()),
                         LinkedHashMap::new,
-                        Collectors.mapping(r -> {
-                            var typesValue = r.get("propertyTypes");
-                            var types = typesValue.isNull() ? List.<String>of() : typesValue.asList(Value::asString);
-                            return new RawPropertyRow(
-                                    r.get("propertyName").asString(""),
-                                    types,
-                                    r.get("mandatory").asBoolean(false),
-                                    1   // rel types are single-valued; treat every row as authoritative
-                            );
-                        }, Collectors.toList())
-                )).entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> mergePropertiesByName(e.getValue()),
-                        (a, b) -> a,
-                        LinkedHashMap::new
+                        // rel types are single-valued so every row is authoritative for mandatory — labelCount=1
+                        Collectors.mapping(r -> toRawPropertyRow(r, 1), Collectors.toList())
                 ));
+
+        log.info("found {} distinct relationship types", rawByType.size());
+
+        var propsByType = new LinkedHashMap<String, List<PropertyInfo>>();
+        rawByType.forEach((relType, rows) ->
+                propsByType.put(relType, rows.stream()
+                        .filter(r -> !r.propertyName().isBlank())
+                        .map(r -> new PropertyInfo(r.propertyName(), r.types().stream().sorted().toList(), !r.mandatory()))
+                        .toList()));
 
         var relTypeGrouper = new RelTypeGrouper();
         var groupSizes = relTypeGrouper.detectedGroupSizes(propsByType.keySet(), groupThreshold);
-        var useFullScan = !groupSizes.isEmpty();
-        if (useFullScan) {
-            log.info("Relationship strategy: full graph scan ({} parameterised groups detected)", groupSizes.size());
+
+        List<RelationshipTypeInfo> result;
+        if (groupSizes.isEmpty()) {
+            log.info("Relationship strategy: per-type queries ({} types)", propsByType.size());
+            var stats = collectRelationshipStatsPerType(session, propsByType.keySet());
+            result = propsByType.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(e -> new RelationshipTypeInfo(
+                            e.getKey(),
+                            stats.counts().getOrDefault(e.getKey(), 0L),
+                            stats.connections().getOrDefault(e.getKey(), List.of()),
+                            e.getValue()
+                    ))
+                    .toList();
+        } else {
+            var totalVariants = groupSizes.values().stream().mapToInt(Integer::intValue).sum();
+            log.info("Relationship strategy: per-group scan ({} parameterised groups, {} total variants)",
+                    groupSizes.size(), totalVariants);
             groupSizes.forEach((base, size) ->
                     log.info("  Parameterised group: {} ({} variants)", base, size));
-        } else {
-            log.info("Relationship strategy: per-type queries ({} types)", propsByType.size());
+
+            var grouped = new ArrayList<>(
+                    collectGroupedRelationshipTypes(session, groupSizes, propsByType, relTypeGrouper));
+
+            var ungroupedNames = propsByType.keySet().stream()
+                    .filter(name -> groupSizes.keySet().stream()
+                            .noneMatch(base -> name.startsWith(base + "_")))
+                    .collect(Collectors.toSet());
+
+            if (!ungroupedNames.isEmpty()) {
+                log.info("Collecting stats for {} non-parameterised types via per-type queries",
+                        ungroupedNames.size());
+                var ungroupedStats = collectRelationshipStatsPerType(session, ungroupedNames);
+                ungroupedNames.stream()
+                        .sorted()
+                        .forEach(name -> grouped.add(new RelationshipTypeInfo(
+                                name,
+                                ungroupedStats.counts().getOrDefault(name, 0L),
+                                ungroupedStats.connections().getOrDefault(name, List.of()),
+                                propsByType.get(name))));
+            }
+
+            result = grouped;
         }
 
-        var stats = useFullScan
-                ? collectRelationshipStatsByFullScan(session)
-                : collectRelationshipStatsPerType(session, propsByType.keySet());
-
-        var result = propsByType.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(e -> new RelationshipTypeInfo(
-                        e.getKey(),
-                        stats.counts().getOrDefault(e.getKey(), 0L),
-                        stats.connections().getOrDefault(e.getKey(), List.of()),
-                        e.getValue()
-                ))
-                .toList();
         log.info("done collecting, found {} relationship types", result.size());
         return result;
     }
@@ -357,33 +382,65 @@ public class SchemaCollector {
     }
 
     /**
-     * Collects relationship counts and connectivity in a single full graph scan.
-     * Used when parameterised type groups are detected, since the number of individual types
-     * can reach tens of thousands, making per-type round trips impractical.
+     * Collects relationship data for parameterised groups by running one full-graph scan per
+     * group, filtered by the group's underscore-delimited prefix. A single scan per group
+     * bounds the server-side EagerAggregation to the connection patterns of that group
+     * (typically a handful of rows) rather than aggregating across all relationship types at
+     * once, which would require memory proportional to the entire type × connection-pattern
+     * cardinality.
      */
-    private RelationshipTypeStats collectRelationshipStatsByFullScan(Session session) {
-        var counts = new HashMap<String, Long>();
-        var connections = new HashMap<String, List<Connection>>();
-        try {
+    private List<RelationshipTypeInfo> collectGroupedRelationshipTypes(
+            Session session,
+            Map<String, Integer> groupSizes,
+            Map<String, List<PropertyInfo>> propsByType,
+            RelTypeGrouper relTypeGrouper) {
+
+        var result = new ArrayList<RelationshipTypeInfo>();
+        for (var entry : groupSizes.entrySet()) {
+            var base = entry.getKey();
+            var variantCount = entry.getValue();
+            var prefix = base + "_";
+            log.info("Scanning parameterised group '{}_*' ({} variants)...", base, variantCount);
             var startTime = System.currentTimeMillis();
-            var rowsByType = session.executeRead(tx -> tx.run("""
-                            MATCH (start)-[relationship]->(end)
-                            RETURN type(relationship) AS relationshipType,
-                                   labels(start) AS startLabels,
-                                   labels(end) AS endLabels,
-                                   count(*) AS cnt
-                            """).list()).stream()
-                    .collect(Collectors.groupingBy(row -> row.get("relationshipType").asString()));
-            rowsByType.forEach((relationshipType, rows) -> {
-                var connectionList = buildConnectionList(rows);
-                connections.put(relationshipType, connectionList);
-                counts.put(relationshipType, connectionList.stream().mapToLong(Connection::count).sum());
-            });
-            log.info("Full scan complete: {} distinct types in {} ms", counts.size(), System.currentTimeMillis() - startTime);
-        } catch (Exception e) {
-            log.warn("Could not collect relationship stats: {}", e.getMessage());
+            try {
+                var rows = session.executeRead(tx -> tx.run("""
+                        MATCH (start)-[r]->(end)
+                        WHERE type(r) STARTS WITH $prefix
+                        RETURN labels(start) AS startLabels,
+                               labels(end) AS endLabels,
+                               count(*) AS cnt
+                        """, Map.of("prefix", prefix)).list());
+
+                var connections = buildConnectionList(rows);
+                var totalCount = connections.stream().mapToLong(Connection::count).sum();
+
+                var memberNames = propsByType.keySet().stream()
+                        .filter(name -> name.startsWith(prefix))
+                        .sorted()
+                        .toList();
+                if (memberNames.isEmpty()) {
+                    log.warn("Group '{}_*' has no member types in schema properties — skipping", base);
+                    continue;
+                }
+
+                var mergedPropsMap = new LinkedHashMap<String, PropertyInfo>();
+                for (var memberName : memberNames) {
+                    for (var p : propsByType.getOrDefault(memberName, List.of())) {
+                        mergedPropsMap.merge(p.name(), p,
+                                (existing, incoming) -> incoming.nullable() ? existing : existing.withNullable(false));
+                    }
+                }
+
+                result.add(relTypeGrouper.buildGrouped(
+                        base, memberNames, new ArrayList<>(mergedPropsMap.values()), totalCount, connections));
+
+                log.info("Group '{}_*' complete: {} instances, {} connection patterns, {} ms",
+                        base, memberNames.size(), connections.size(), System.currentTimeMillis() - startTime);
+            } catch (Exception e) {
+                log.warn("Could not scan group '{}_*': {}", base, e.getMessage());
+            }
         }
-        return new RelationshipTypeStats(counts, connections);
+        return result;
     }
 
     /**

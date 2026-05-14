@@ -132,6 +132,15 @@ class SchemaCollectorIT {
 
             // ---- Constraint (causes extra rows in nodeTypeProperties) -----------
             session.run("CREATE CONSTRAINT person_name_unique FOR (p:Person) REQUIRE p.name IS UNIQUE");
+
+            // ---- Parameterized relationship types (ParameterisedGroups tests) ---
+            // 12 PROMOTED_N variants between Buyer and Listing trigger the per-group scan path
+            // (collect() uses threshold=2, so 12 variants ≥ 2 → group detected).
+            session.run("CREATE (:Buyer {id: 'B1'})");
+            session.run("CREATE (:Listing {id: 'L1'})");
+            for (int i = 1; i <= 12; i++) {
+                session.run("MATCH (b:Buyer), (l:Listing) CREATE (b)-[:" + "PROMOTED_" + i + "]->(l)");
+            }
         }
     }
 
@@ -193,12 +202,12 @@ class SchemaCollectorIT {
             var connections = worksFor.getConnections();
             assertTrue(connections.stream().anyMatch(conn ->
                     conn.startLabels().equals(List.of("Person")) &&
-                    conn.endLabels().equals(List.of("Company")) &&
-                    conn.count() > 0));
+                            conn.endLabels().equals(List.of("Company")) &&
+                            conn.count() > 0));
             assertTrue(connections.stream().anyMatch(conn ->
                     conn.startLabels().equals(List.of("Person")) &&
-                    conn.endLabels().equals(List.of("Organization")) &&
-                    conn.count() > 0));
+                            conn.endLabels().equals(List.of("Organization")) &&
+                            conn.count() > 0));
         }
     }
 
@@ -250,7 +259,7 @@ class SchemaCollectorIT {
         void labelsNeverAppearsAloneAreAutoTagged() {
             var doc = collect();
             for (var name : List.of("Draft", "Featured", "Published",
-                                    "Admin", "Editor", "Viewer", "XSpecial")) {
+                    "Admin", "Editor", "Viewer", "XSpecial")) {
                 assertEquals(LabelRole.TAG, findLabel(doc, name).getRole(),
                         "'%s' never appears alone — should be auto-detected as TAG".formatted(name));
             }
@@ -310,6 +319,46 @@ class SchemaCollectorIT {
             var label = findLabel(collect(), "Pending");
             assertTrue(label.getProperties().isEmpty(),
                     "Property-free label 'Pending' should be collected with an empty property list");
+        }
+    }
+
+    // =========================================================================
+    // Parameterised groups
+    // =========================================================================
+
+    @Nested
+    class ParameterisedGroups {
+
+        @Test
+        void parameterisedGroupIsCollapsedToSingleGroupedEntry() {
+            // 12 PROMOTED_N variants trigger the per-group scan path (threshold=2 in collect()).
+            var promoted = findRel(collect(), "PROMOTED");
+            assertTrue(promoted.isParameterized());
+        }
+
+        @Test
+        void groupedEntryHasSummedCount() {
+            assertEquals(12L, findRel(collect(), "PROMOTED").getCount());
+        }
+
+        @Test
+        void groupedEntryHasCorrectConnections() {
+            var connections = findRel(collect(), "PROMOTED").getConnections();
+            assertEquals(1, connections.size());
+            assertEquals(List.of("Buyer"), connections.getFirst().startLabels());
+            assertEquals(List.of("Listing"), connections.getFirst().endLabels());
+        }
+
+        @Test
+        void groupedEntryHasTwelveInstances() {
+            assertEquals(12, findRel(collect(), "PROMOTED").getInstances().size());
+        }
+
+        @Test
+        void nonParameterisedTypeIsStillPresentWhenGroupScanPathIsActive() {
+            // The per-group scan path also runs per-type queries for ungrouped types.
+            // WORKS_FOR is ungrouped and must still appear in the result.
+            assertNotNull(findRel(collect(), "WORKS_FOR"));
         }
     }
 
