@@ -154,7 +154,9 @@ public class RelationshipTypeInfo {
         if (!isParameterized()) {
             return name;
         }
-        return name + typeParameters.stream()
+        // Group names carry a trailing _ convention to avoid collision with plain types
+        var baseName = name.endsWith("_") ? name.substring(0, name.length() - 1) : name;
+        return baseName + typeParameters.stream()
                 .map(p -> "_{" + p.name() + "}")
                 .collect(Collectors.joining());
     }

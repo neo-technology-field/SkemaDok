@@ -20,8 +20,12 @@ public record PropertyInfo(
         String dataSource
 ) {
     public PropertyInfo {
-        if (description == null) description = "";
-        if (dataSource == null) dataSource = "";
+        if (description == null) {
+            description = "";
+        }
+        if (dataSource == null) {
+            dataSource = "";
+        }
     }
 
     /** Structural constructor — annotation fields default to empty strings. */

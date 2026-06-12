@@ -13,12 +13,17 @@
     <artifactId>skemadok-core</artifactId>
     <packaging>jar</packaging>
     <name>SkemaDok Core</name>
-    <description>Domain model, schema collector, merger, and CLI commands for collect/merge</description>
+    <description>Domain model, SchemaCollector, and CollectCommand — shared by collector and app.</description>
 
     <dependencies>
         <dependency>
             <groupId>org.neo4j.driver</groupId>
             <artifactId>neo4j-java-driver</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
         </dependency>
 
         <dependency>
@@ -29,11 +34,6 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>info.picocli</groupId>
-            <artifactId>picocli</artifactId>
         </dependency>
 
         <!-- SLF4J API only — implementations provided by collector or app -->

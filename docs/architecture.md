@@ -127,6 +127,7 @@ A label or relationship type may appear in multiple views. The `removed` flag is
 
 | Data | Procedure / statement |
 |---|---|
+| Label inventory (primary) | `CALL db.labels()` |
 | Label properties | `CALL db.schema.nodeTypeProperties()` |
 | Relationship type properties | `CALL db.schema.relTypeProperties()` |
 | Label counts + multi-label co-occurrence | single `MATCH (n) UNWIND labels(n)` query |
@@ -136,9 +137,11 @@ A label or relationship type may appear in multiple views. The `removed` flag is
 
 `SHOW INDEXES` and `SHOW CONSTRAINTS` require elevated privileges. The collector catches errors and continues with a partial schema rather than aborting.
 
+`db.labels()` is the authoritative label source. `db.schema.nodeTypeProperties()` only emits rows for label combinations that introduce at least one new property type — TAG labels whose properties are entirely shared with a co-occurring entity label produce no rows and would be silently omitted without the `db.labels()` first pass.
+
 ### Label role detection
 
-A label that never appears in a single-label node combination is automatically classified as `TAG`. The heuristic uses `labelCount` from `db.schema.nodeTypeProperties()` — if no row for a label has `labelCount == 1`, the label always co-occurs with at least one other and is therefore a classification tag. Labels that do appear alone remain `ENTITY`.
+A label that never appears in a single-label node combination is automatically classified as `TAG`. The heuristic uses `labelCount` from `db.schema.nodeTypeProperties()` — if no row for a label has `labelCount == 1`, the label always co-occurs with at least one other and is therefore a classification tag. Labels that do appear alone are classified `ENTITY`. Users may override any role via the AnnotationPanel; `SchemaMerger` preserves role through re-collect → merge cycles.
 
 ---
 

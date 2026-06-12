@@ -22,3 +22,5 @@ target/
 
 # The developer is likely to run a test in this directory
 schema.json
+/schemas/
+/docker/

@@ -26,7 +26,7 @@ public class CollectCommand implements Callable<Integer> {
 
     private static final Logger log = LoggerFactory.getLogger(CollectCommand.class);
 
-    @Option(names = {"-H", "--host"}, required = true,
+    @Option(names = {"-a", "--uri"}, required = true,
             description = "Neo4j Bolt URI (e.g. bolt://localhost:7687 or neo4j+s://xxxxx.databases.neo4j.io)")
     private String uri;
 

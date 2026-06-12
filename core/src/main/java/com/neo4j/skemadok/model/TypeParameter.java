@@ -25,8 +25,12 @@ public record TypeParameter(
         List<String> exampleValues
 ) {
     public TypeParameter {
-        if (name == null || name.isBlank()) name = "v" + (position + 1);
-        if (description == null) description = "";
+        if (name == null || name.isBlank()) {
+            name = "v" + (position + 1);
+        }
+        if (description == null) {
+            description = "";
+        }
     }
 
     /** Structural constructor — name defaults to vN, description defaults to empty string. */

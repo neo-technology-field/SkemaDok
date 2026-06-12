@@ -9,7 +9,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Detects and collapses parameterised relationship type names into grouped entries.
+ * Detects parameterised relationship type groups in a set of type names and provides
+ * access to the analysis results.
  *
  * <h2>The problem</h2>
  * Some schemas encode runtime metadata directly in the relationship type name, e.g.
@@ -18,10 +19,14 @@ import java.util.stream.Collectors;
  * {@code WORKS_FOR} entry with named parameter slots.
  *
  * <h2>Detection rule</h2>
- * A type name is split on {@code _}. The base is determined entirely by frequency:
- * if at least {@code threshold} names share the same {@code _}-delimited prefix, that
- * prefix is a base candidate. The longest qualifying prefix wins. Character content
- * (digits vs letters) plays no role — the variation across instances is the only signal.
+ * A type name is split on {@code _}. Candidate groups are identified by frequency: if at least
+ * {@code threshold} names share the same {@code _}-delimited prefix, that prefix triggers a group.
+ * Within each candidate group, names are further bucketed by total segment count. Inside each
+ * segment-count bucket the stable base is the <em>longest common segment prefix</em> — the
+ * leftmost consecutive positions where every member agrees. The first position where any member
+ * diverges is where the variable part begins. This means {@code COMP_HAS_COSTS_FOR_PROD_1267}
+ * and {@code COMP_HAS_COSTS_FOR_PROD_2345} produce base {@code COMP_HAS_COSTS_FOR_PROD}, not
+ * the shorter frequency-detected prefix {@code COMP}.
  *
  * <p>The threshold is configurable via {@code --group-threshold} on the CLI; 10 is the
  * default because schemas with &gt;65k relationship types are not uncommon and a low
@@ -31,115 +36,151 @@ public class RelTypeGrouper {
 
     public static final int DEFAULT_THRESHOLD = 10;
 
+    private final Map<String, List<String>> groups;
+    private final List<String> ungroupedNames;
+
     /**
-     * Key for grouping connections by label sets, excluding count from equality.
+     * Analyses {@code allTypeNames}, detecting parameterised groups at or above
+     * {@code minGroupSize}. Results are immediately available via {@link #getGroups()}
+     * and {@link #getUngroupedNames()}.
      */
-    private record ConnectionKey(List<String> startLabels, List<String> endLabels) {
+    public RelTypeGrouper(List<String> allTypeNames, int minGroupSize) {
+        this.groups = Collections.unmodifiableMap(detect(allTypeNames, minGroupSize));
+        var groupedNames = groups.values().stream().flatMap(List::stream).collect(Collectors.toSet());
+        this.ungroupedNames = allTypeNames.stream()
+                .filter(name -> !groupedNames.contains(name))
+                .toList();
     }
 
     /**
-     * Groups raw relationship types, returning a new list where parameterised families
-     * at or above {@code minGroupSize} are replaced by a single grouped entry.
-     * Types below the threshold pass through unchanged. The result is sorted by name.
-     *
-     * @param rawTypes     relationship types as returned by the collector
-     * @param minGroupSize minimum number of instances required to collapse a family
+     * Detected parameterised groups: stable base name → sorted list of member type names.
+     * Groups with fewer than {@code minGroupSize} members are absent; their names appear in
+     * {@link #getUngroupedNames()} instead.
      */
-    List<RelationshipTypeInfo> group(List<RelationshipTypeInfo> rawTypes, int minGroupSize) {
-        var prefixCount = buildPrefixFrequencies(rawTypes.stream()
-                .map(RelationshipTypeInfo::getName).toList());
+    public Map<String, List<String>> getGroups() {
+        return groups;
+    }
 
-        var groups = new LinkedHashMap<String, List<RelationshipTypeInfo>>();
-        var ungroupable = new ArrayList<RelationshipTypeInfo>();
+    /**
+     * Type names that did not qualify for any group and should be collected individually.
+     */
+    public List<String> getUngroupedNames() {
+        return ungroupedNames;
+    }
 
-        for (var rt : rawTypes) {
-            var base = shortestQualifyingPrefix(rt.getName(), prefixCount, minGroupSize);
-            if (base == null) {
-                ungroupable.add(rt);
+    /**
+     * Builds a grouped {@link RelationshipTypeInfo} from precomputed stats.
+     * Type-parameter slots and instance names are derived from {@code memberNames} alone.
+     */
+    static RelationshipTypeInfo buildGrouped(
+            String base,
+            List<String> memberNames,
+            List<PropertyInfo> mergedProperties,
+            long totalCount,
+            List<Connection> connections) {
+
+        int baseSegCount = base.split("_").length;
+        int varCount = memberNames.stream()
+                .mapToInt(n -> n.split("_").length)
+                .max().orElse(baseSegCount) - baseSegCount;
+
+        var typeParams = new ArrayList<TypeParameter>();
+        for (int i = 0; i < varCount; i++) {
+            final int segIdx = baseSegCount + i;
+            var examples = memberNames.stream()
+                    .filter(name -> name.split("_").length > segIdx)
+                    .map(name -> name.split("_")[segIdx])
+                    .distinct().sorted().limit(5)
+                    .toList();
+            typeParams.add(new TypeParameter(i, examples));
+        }
+
+        return new RelationshipTypeInfo(
+                base, totalCount, connections,
+                List.copyOf(mergedProperties),
+                typeParams,
+                memberNames.stream().sorted().toList()
+        );
+    }
+
+    /**
+     * Returns the longest segment-by-segment common prefix of all names in the list.
+     * Segments are {@code _}-delimited. Names are assumed to share the same segment count
+     * (callers enforce this by bucketing on segment count before invoking).
+     *
+     * <p>The result is the stable base: all leading positions where every name agrees.
+     * The first position where any name diverges marks where variable slots begin.
+     */
+    static String longestCommonSegmentPrefix(List<String> names) {
+        if (names.isEmpty()) {
+            return "";
+        }
+        var parts = names.stream().map(n -> n.split("_")).toList();
+        var reference = parts.getFirst();
+        int stableLen = 0;
+        for (int col = 0; col < reference.length; col++) {
+            final int c = col;
+            if (parts.stream().allMatch(p -> p.length > c && p[c].equals(reference[c]))) {
+                stableLen = col + 1;
             } else {
-                var key = base + ":" + rt.getName().split("_").length;
-                groups.computeIfAbsent(key, k -> new ArrayList<>()).add(rt);
+                break;
+            }
+        }
+        return String.join("_", Arrays.copyOf(reference, stableLen));
+    }
+
+    private Map<String, List<String>> detect(List<String> names, int minGroupSize) {
+        var prefixCount = buildPrefixCounts(names);
+
+        var initialBuckets = new LinkedHashMap<String, List<String>>();
+        for (var name : names) {
+            var shortPrefix = shortestQualifyingPrefix(name, prefixCount, minGroupSize);
+            if (shortPrefix != null) {
+                var key = shortPrefix + ":" + name.split("_").length;
+                initialBuckets.computeIfAbsent(key, k -> new ArrayList<>()).add(name);
             }
         }
 
-        var result = new ArrayList<>(ungroupable);
-        for (var entry : groups.entrySet()) {
+        var result = new LinkedHashMap<String, List<String>>();
+        for (var entry : initialBuckets.entrySet()) {
             var members = entry.getValue();
-            var base = entry.getKey().substring(0, entry.getKey().lastIndexOf(':'));
-            if (members.size() < minGroupSize) {
-                result.addAll(members);
-            } else {
-                result.add(buildGrouped(base, members));
+            if (members.size() >= minGroupSize) {
+                var sortedMembers = members.stream().sorted().toList();
+                var actualBase = longestCommonSegmentPrefix(sortedMembers);
+                result.merge(actualBase, new ArrayList<>(sortedMembers), (a, b) -> {
+                    var merged = new ArrayList<>(a);
+                    merged.addAll(b);
+                    return merged;
+                });
             }
         }
-
-        result.sort(Comparator.comparing(RelationshipTypeInfo::getName));
         return result;
     }
 
     /**
-     * Returns {@code true} if at least one parameterised family at or above {@code minGroupSize}
-     * can be formed from the given type names, using the same detection logic as {@link #group}.
-     *
-     * <p>Used by the collector to decide between per-type count-store queries (fast, but N
-     * round trips) and a full relationship scan (one query, necessary when group members are
-     * numerous enough to make N round trips impractical).
-     *
-     * @param names        relationship type names, as returned by {@code db.schema.relTypeProperties()}
-     * @param minGroupSize the grouping threshold; mirrors the value passed to {@link #group}
+     * For each name, emits every leading sub-sequence of its {@code _}-delimited segments
+     * (excluding the full name itself) and counts how many names share each one.
+     * For example, {@code WORKS_FOR_2024} contributes to the counts for {@code WORKS} and
+     * {@code WORKS_FOR}, but not for {@code WORKS_FOR_2024}.
      */
-    boolean detectsGroups(Collection<String> names, int minGroupSize) {
-        var prefixCount = buildPrefixFrequencies(names);
-        return prefixCount.values().stream().anyMatch(count -> count >= minGroupSize);
-    }
-
-    /**
-     * Returns the detected parameterised families and their variant counts.
-     * Keys are the base names (e.g. {@code WORKS_FOR}); values are the number of concrete
-     * type names that map to that family. Only families at or above {@code minGroupSize} are returned.
-     *
-     * <p>Used for logging — one info line per family before the full scan starts, so the user can
-     * see which types triggered the expensive scan path.
-     *
-     * @param names        relationship type names from {@code db.schema.relTypeProperties()}
-     * @param minGroupSize the grouping threshold; mirrors the value passed to {@link #group}
-     */
-    Map<String, Integer> detectedGroupSizes(Collection<String> names, int minGroupSize) {
-        var prefixCount = buildPrefixFrequencies(names);
-        var groupCounts = new LinkedHashMap<String, Integer>();
-        for (var name : names) {
-            var base = shortestQualifyingPrefix(name, prefixCount, minGroupSize);
-            if (base != null) {
-                groupCounts.merge(base, 1, Integer::sum);
-            }
-        }
-        return groupCounts.entrySet().stream()
-                .filter(e -> e.getValue() >= minGroupSize)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
-    }
-
-    /**
-     * Counts how many names in the collection have each possible proper {@code _}-prefix.
-     * A prefix is "proper" when it has fewer segments than the name it is a prefix of.
-     */
-    private Map<String, Integer> buildPrefixFrequencies(Collection<String> names) {
-        var freq = new HashMap<String, Integer>();
+    private Map<String, Integer> buildPrefixCounts(Collection<String> names) {
+        var counts = new HashMap<String, Integer>();
         for (var name : names) {
             var parts = name.split("_");
             for (int i = 1; i < parts.length; i++) {
-                freq.merge(String.join("_", Arrays.copyOf(parts, i)), 1, Integer::sum);
+                counts.merge(String.join("_", Arrays.copyOf(parts, i)), 1, Integer::sum);
             }
         }
-        return freq;
+        return counts;
     }
 
     /**
-     * Returns the shortest proper {@code _}-prefix of {@code name} whose frequency meets
+     * Returns the shortest proper {@code _}-prefix of {@code name} whose count meets
      * {@code minGroupSize}, or {@code null} if no such prefix exists.
      *
-     * <p>Shortest-first is intentional: using the longest qualifying prefix would assign
-     * sub-prefixes (e.g. {@code REL_2024}) to a narrower group than the enclosing family
-     * ({@code REL}), splitting what should be a single parameterised type into several.
+     * <p>Shortest-first is intentional: using the longest qualifying prefix would split
+     * what should be a single parameterised type (e.g. {@code REL}) into narrower sub-groups
+     * (e.g. {@code REL_2024}, {@code REL_2025}).
      */
     private String shortestQualifyingPrefix(String name, Map<String, Integer> prefixCount, int minGroupSize) {
         var parts = name.split("_");
@@ -150,80 +191,5 @@ public class RelTypeGrouper {
             }
         }
         return null;
-    }
-
-    /**
-     * Builds a grouped entry from precomputed stats. Used by the collector when
-     * counts and connections come from a group-level graph scan rather than from
-     * per-individual-type stats. Type-parameter slots and instance names are derived
-     * from {@code memberNames} alone.
-     */
-    RelationshipTypeInfo buildGrouped(
-            String base,
-            List<String> memberNames,
-            List<PropertyInfo> mergedProperties,
-            long totalCount,
-            List<Connection> connections) {
-
-        int baseSegCount = base.split("_").length;
-        int varCount = memberNames.getFirst().split("_").length - baseSegCount;
-
-        var typeParams = new ArrayList<TypeParameter>();
-        for (int i = 0; i < varCount; i++) {
-            final int segIdx = baseSegCount + i;
-            var examples = memberNames.stream()
-                    .map(name -> name.split("_")[segIdx])
-                    .distinct().sorted().limit(5)
-                    .toList();
-            typeParams.add(new TypeParameter(i, examples));
-        }
-
-        return new RelationshipTypeInfo(
-                base, totalCount, connections,
-                new ArrayList<>(mergedProperties),
-                typeParams,
-                memberNames.stream().sorted().toList()
-        );
-    }
-
-    /**
-     * Builds a grouped entry from per-individual-type {@link RelationshipTypeInfo} objects.
-     * Merges counts, connections, and properties across all members, then delegates to
-     * {@link #buildGrouped(String, List, List, long, List)} for name-based structure.
-     * Used by {@link #group} when per-type stats are already available.
-     */
-    private RelationshipTypeInfo buildGrouped(String base, List<RelationshipTypeInfo> members) {
-        long totalCount = members.stream().mapToLong(RelationshipTypeInfo::getCount).sum();
-
-        // Merge connections from all group members. Connection equality includes count, so we
-        // group by (startLabels, endLabels) key and sum counts to avoid duplicates across instances.
-        var mergedConnectionCounts = new LinkedHashMap<ConnectionKey, Long>();
-        for (var member : members) {
-            for (var conn : member.getConnections()) {
-                var key = new ConnectionKey(conn.startLabels(), conn.endLabels());
-                mergedConnectionCounts.merge(key, conn.count(), Long::sum);
-            }
-        }
-        var mergedConnections = mergedConnectionCounts.entrySet().stream()
-                .map(entry -> new Connection(entry.getKey().startLabels(), entry.getKey().endLabels(), entry.getValue()))
-                .sorted(Comparator.comparing((Connection conn) -> conn.startLabels().toString())
-                        .thenComparing(conn -> conn.endLabels().toString()))
-                .toList();
-
-        var mergedProps = new LinkedHashMap<String, PropertyInfo>();
-        for (var rt : members) {
-            for (var p : rt.getProperties()) {
-                mergedProps.merge(p.name(), p,
-                        (existing, incoming) -> incoming.nullable() ? existing : existing.withNullable(false));
-            }
-        }
-
-        return buildGrouped(
-                base,
-                members.stream().map(RelationshipTypeInfo::getName).toList(),
-                new ArrayList<>(mergedProps.values()),
-                totalCount,
-                mergedConnections
-        );
     }
 }

@@ -1,6 +1,7 @@
 package com.neo4j.skemadok;
 
 import com.neo4j.skemadok.cli.SkemaDokCommand;
+import com.neo4j.skemadok.cli.UiCommand;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -16,7 +17,7 @@ public class SkemaDokApplication {
 
     public static void main(String[] args) {
         // Determine web type before Spring starts — only the 'ui' subcommand needs a web server.
-        boolean uiMode = Arrays.asList(args).contains("ui");
+        boolean uiMode = Arrays.asList(args).contains(UiCommand.COMMAND_NAME);
 
         new SpringApplicationBuilder(SkemaDokApplication.class)
                 .web(uiMode ? org.springframework.boot.WebApplicationType.SERVLET : WebApplicationType.NONE)
@@ -47,7 +48,7 @@ public class SkemaDokApplication {
 
             int exitCode = new CommandLine(rootCommand, factory).execute(args);
 
-            if (Arrays.stream(args).noneMatch("ui"::equals)) {
+            if (Arrays.stream(args).noneMatch(UiCommand.COMMAND_NAME::equals)) {
                 System.exit(exitCode);
             }
         };

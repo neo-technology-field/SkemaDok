@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.neo4j.skemadok.cli.CollectCommand;
 import com.neo4j.skemadok.cli.CollectorCommand;
-import com.neo4j.skemadok.cli.MergeCommand;
 import com.neo4j.skemadok.collector.SchemaCollector;
-import com.neo4j.skemadok.merge.SchemaMerger;
 import picocli.CommandLine;
 
 /**
@@ -22,7 +20,6 @@ public class CollectorApplication {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
         var collector = new SchemaCollector();
-        var merger = new SchemaMerger();
 
         CommandLine.IFactory factory = new CommandLine.IFactory() {
             @Override
@@ -30,14 +27,10 @@ public class CollectorApplication {
                 if (clazz == CollectCommand.class) {
                     return clazz.cast(new CollectCommand(collector, objectMapper));
                 }
-                if (clazz == MergeCommand.class) {
-                    return clazz.cast(new MergeCommand(merger, objectMapper));
-                }
                 return CommandLine.defaultFactory().create(clazz);
             }
         };
 
-        int exitCode = new CommandLine(new CollectorCommand(), factory).execute(args);
-        System.exit(exitCode);
+        System.exit(new CommandLine(new CollectorCommand(), factory).execute(args));
     }
 }

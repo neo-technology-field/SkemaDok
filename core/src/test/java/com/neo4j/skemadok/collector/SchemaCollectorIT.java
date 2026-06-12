@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,17 +32,21 @@ import static org.junit.jupiter.api.Assertions.*;
  *       always applied alongside a base entity label and carry no independent properties.
  *   <li><b>RBAC role labels</b> — labels like {@code :Admin}, {@code :Editor}, {@code :Viewer}
  *       applied to account nodes; no independent properties, always co-occur.
- *   <li><b>Auto-TAG detection</b> — labels that never appear in a single-label node combination
- *       are automatically classified as {@link LabelRole#TAG}.
+ *   <li><b>taggedEntities inference</b> — TAGs with exactly one ENTITY co-label have
+ *       {@code taggedEntities} auto-populated by the collector; ambiguous or zero-entity
+ *       co-label cases are left empty for manual annotation.
+ *   <li><b>Label discovery via db.labels()</b> — labels that produce no rows in
+ *       {@code db.schema.nodeTypeProperties()} (e.g. property-free multi-label nodes) are
+ *       still discovered because {@code db.labels()} is the authoritative label inventory.
  *   <li><b>Hierarchy labels</b> — {@code :Category} forming a self-referential tree; remain
  *       unclassified (ENTITY) because hierarchy detection is deferred.
  * </ul>
  *
  * <h2>Alphabetical ordering constraint</h2>
  * {@code db.schema.nodeTypeProperties()} attributes a combined node's properties to
- * {@code nodeLabels[0]}, the alphabetically first label in the combination. For role-detection
- * and nullable tests to work correctly, the base entity label must come before the tag labels
- * alphabetically so the entity gets the properties and the tags appear property-free.
+ * {@code nodeLabels[0]}, the alphabetically first label in the combination. For nullable tests
+ * to work correctly, the base entity label must come before the tag labels alphabetically so
+ * the entity gets the properties and the tags appear property-free.
  * <ul>
  *   <li>{@code Article} (A) &lt; {@code Draft} (D) &lt; {@code Featured} (F) &lt; {@code Published} (P)
  *   <li>{@code Account} (Ac) &lt; {@code Admin} (Ad) &lt; {@code Editor} (E) &lt; {@code Viewer} (V)
@@ -50,8 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <h2>Article and Account each have one pure single-label instance</h2>
  * All tag labels (Draft/Featured/Published/Admin/Editor/Viewer/XSpecial) are created directly
- * with multi-label CREATE statements so they never appear alone. The entity labels (Article,
- * Account) always have at least one pure single-label node so they are NOT auto-tagged.
+ * with multi-label CREATE statements so they never appear alone.
  */
 @Testcontainers
 class SchemaCollectorIT {
@@ -129,6 +133,14 @@ class SchemaCollectorIT {
             // CREATE (:Pending) yields nodeLabels=['Pending'], propertyName=null in
             // db.schema.nodeTypeProperties() — the case the collector must not drop.
             session.run("CREATE (:Pending)");
+
+            // ---- Property-free multi-label TAG: only ever appears with another label ------
+            // PendingFlag is added to the same property-free node. The combination
+            // [:Pending:PendingFlag] has no properties, and Neo4j may not emit a
+            // combination row distinct from the existing [:Pending] row — making
+            // PendingFlag invisible to db.schema.nodeTypeProperties() alone. db.labels()
+            // is the fallback that guarantees discovery.
+            session.run("MATCH (n:Pending) SET n:PendingFlag");
 
             // ---- Constraint (causes extra rows in nodeTypeProperties) -----------
             session.run("CREATE CONSTRAINT person_name_unique FOR (p:Person) REQUIRE p.name IS UNIQUE");
@@ -249,7 +261,7 @@ class SchemaCollectorIT {
     }
 
     // =========================================================================
-    // Auto-TAG role detection
+    // Role detection
     // =========================================================================
 
     @Nested
@@ -278,6 +290,80 @@ class SchemaCollectorIT {
         void propertyFreeLabelAppearsAloneIsNotAutoTagged() {
             // :Pending appears alone with no properties — must not be classified as TAG.
             assertNotEquals(LabelRole.TAG, findLabel(collect(), "Pending").getRole());
+        }
+    }
+
+    // =========================================================================
+    // taggedEntities inference
+    // =========================================================================
+
+    @Nested
+    class TaggedEntitiesInference {
+
+        @Test
+        void tagWithSingleEntityCoLabelGetsTaggedEntitiesPopulated() {
+            // Featured, Draft, Published each co-occur only with Article (ENTITY).
+            // The collector should auto-fill taggedEntities rather than leaving it for manual annotation.
+            var doc = collect();
+            for (var name : List.of("Featured", "Draft", "Published")) {
+                var tag = findLabel(doc, name);
+                assertEquals(List.of("Article"), tag.getTaggedEntities(),
+                        "'%s' has exactly one ENTITY co-label — taggedEntities should be auto-filled".formatted(name));
+            }
+        }
+
+        @Test
+        void taggedEntitiesRespectRoleBoundary() {
+            // Admin, Editor, Viewer co-occur only with Account (ENTITY) → auto-filled.
+            // XSpecial co-occurs only with Widget (ENTITY) → auto-filled.
+            var doc = collect();
+            for (var entry : Map.of(
+                    "Admin", "Account",
+                    "Editor", "Account",
+                    "Viewer", "Account",
+                    "XSpecial", "Widget"
+            ).entrySet()) {
+                var tag = findLabel(doc, entry.getKey());
+                assertEquals(List.of(entry.getValue()), tag.getTaggedEntities(),
+                        "'%s' should have taggedEntities=[%s]".formatted(entry.getKey(), entry.getValue()));
+            }
+        }
+    }
+
+    // =========================================================================
+    // Label discovery via db.labels()
+    // =========================================================================
+
+    @Nested
+    class LabelDiscovery {
+
+        @Test
+        void propertyFreeMultiLabelTagIsDiscovered() {
+            // PendingFlag is only ever applied to :Pending nodes that have no properties.
+            // The [:Pending:PendingFlag] combination is property-free, and Neo4j may not
+            // emit a combination row in db.schema.nodeTypeProperties() that differs from
+            // the existing [:Pending] row. db.labels() is the backstop that ensures the
+            // label appears in the collected schema.
+            var label = findLabel(collect(), "PendingFlag");
+            assertTrue(label.getProperties().isEmpty());
+            assertEquals(LabelRole.ENTITY, label.getRole());
+        }
+
+        @Test
+        void allKnownLabelsArePresent() {
+            var collected = collect().getNodeLabels().stream()
+                    .map(LabelInfo::getName)
+                    .collect(java.util.stream.Collectors.toSet());
+            for (var expected : List.of(
+                    "Person", "Organization", "Company", "Employee", "Manager",
+                    "Article", "Featured", "Draft", "Published",
+                    "Account", "Admin", "Editor", "Viewer",
+                    "Widget", "XSpecial",
+                    "Category", "Pending", "PendingFlag",
+                    "Buyer", "Listing")) {
+                assertTrue(collected.contains(expected),
+                        "Label '%s' missing from collected schema".formatted(expected));
+            }
         }
     }
 
@@ -332,18 +418,18 @@ class SchemaCollectorIT {
         @Test
         void parameterisedGroupIsCollapsedToSingleGroupedEntry() {
             // 12 PROMOTED_N variants trigger the per-group scan path (threshold=2 in collect()).
-            var promoted = findRel(collect(), "PROMOTED");
+            var promoted = findRel(collect(), "PROMOTED_");
             assertTrue(promoted.isParameterized());
         }
 
         @Test
         void groupedEntryHasSummedCount() {
-            assertEquals(12L, findRel(collect(), "PROMOTED").getCount());
+            assertEquals(12L, findRel(collect(), "PROMOTED_").getCount());
         }
 
         @Test
         void groupedEntryHasCorrectConnections() {
-            var connections = findRel(collect(), "PROMOTED").getConnections();
+            var connections = findRel(collect(), "PROMOTED_").getConnections();
             assertEquals(1, connections.size());
             assertEquals(List.of("Buyer"), connections.getFirst().startLabels());
             assertEquals(List.of("Listing"), connections.getFirst().endLabels());
@@ -351,7 +437,7 @@ class SchemaCollectorIT {
 
         @Test
         void groupedEntryHasTwelveInstances() {
-            assertEquals(12, findRel(collect(), "PROMOTED").getInstances().size());
+            assertEquals(12, findRel(collect(), "PROMOTED_").getInstances().size());
         }
 
         @Test

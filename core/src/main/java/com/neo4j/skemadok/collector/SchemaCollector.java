@@ -18,15 +18,6 @@ public class SchemaCollector {
     private static final Logger log = LoggerFactory.getLogger(SchemaCollector.class);
 
     /**
-     * Counts and connectivity patterns per relationship type, derived from actual graph data.
-     */
-    private record RelationshipTypeStats(
-            Map<String, Long> counts,
-            Map<String, List<Connection>> connections
-    ) {
-    }
-
-    /**
      * A single row from db.schema.nodeTypeProperties() after UNWIND, carrying the original
      * nodeLabels size so Java can distinguish single-label rows (authoritative for mandatory)
      * from multi-label rows (mandatory flag describes the combination, not the individual label).
@@ -48,7 +39,7 @@ public class SchemaCollector {
      * @param username       database username
      * @param password       database password
      * @param database       target database name
-     * @param groupThreshold minimum number of instances required to collapse a family of
+     * @param groupThreshold minimum number of instances required to collapse a group of
      *                       parameterised relationship type names into a single grouped entry
      * @return collected schema document; user annotations are added later via the UI
      */
@@ -68,10 +59,7 @@ public class SchemaCollector {
 
         var doc = new SchemaDocument(uri, database, detectDatabaseVersion(session), Instant.now());
         doc.setNodeLabels(collectLabels(session));
-
-        var relTypeGrouper = new RelTypeGrouper();
-
-        doc.setRelationshipTypes(relTypeGrouper.group(collectRelationshipInformation(session, groupThreshold), groupThreshold));
+        doc.setRelationshipTypes(collectRelationshipInformation(session, groupThreshold));
         doc.setIndexes(collectIndexes(session));
         doc.setConstraints(collectConstraints(session));
         return doc;
@@ -96,8 +84,37 @@ public class SchemaCollector {
             labelInfos.add(info);
         });
 
+        inferTaggedEntities(labelInfos);
+
         log.info("done collecting, found {} labels", labelInfos.size());
         return labelInfos;
+    }
+
+    /**
+     * Auto-populates {@code taggedEntities} for TAG labels whose host entity is unambiguous:
+     * exactly one co-label with ENTITY role means there is no decision to defer to the user.
+     *
+     * <p>TAGs with zero or multiple ENTITY co-labels are left empty for manual annotation.
+     * Existing (non-empty) values are never overwritten, preserving user annotations carried
+     * forward via SchemaMerger.
+     */
+    private void inferTaggedEntities(List<LabelInfo> labelInfos) {
+
+        var roleByLabel = labelInfos.stream()
+                .collect(Collectors.toMap(LabelInfo::getName, LabelInfo::getRole));
+
+        for (var info : labelInfos) {
+            if (info.getRole() != LabelRole.TAG || !info.getTaggedEntities().isEmpty()) {
+                continue;
+            }
+            var entityCoLabels = Objects.requireNonNullElse(info.getCoLabels(), List.<String>of())
+                    .stream()
+                    .filter(coLabel -> roleByLabel.get(coLabel) == LabelRole.ENTITY)
+                    .toList();
+            if (entityCoLabels.size() == 1) {
+                info.setTaggedEntities(entityCoLabels);
+            }
+        }
     }
 
 
@@ -169,22 +186,26 @@ public class SchemaCollector {
     }
 
     /**
-     * Collects properties per label via db.schema.nodeTypeProperties(), returning merged
-     * PropertyInfo lists and the set of labels that appear in at least one single-label
-     * node combination.
+     * Collects properties per label, using {@code db.labels()} as the authoritative label
+     * inventory and {@code db.schema.nodeTypeProperties()} for property metadata.
      *
-     * <p>The procedure returns one row per (nodeLabels[], propertyName) combination. After
-     * UNWIND the same property name can appear multiple times for one label — once per
-     * nodeLabels combination containing it. The {@code mandatory} flag is only trustworthy
-     * when {@code size(nodeLabels) == 1}; for multi-label combinations it describes the
-     * combination, not the individual label. We carry {@code labelCount} through so Java
-     * can apply the right nullable logic.
+     * <p>The property procedure only emits rows for (nodeLabels[] × propertyName) combinations
+     * that have at least one unique property type. TAG labels whose properties are all covered
+     * by a co-occurring ENTITY label produce no rows and would therefore be silently omitted if
+     * we relied on the procedure alone as the label source. {@code db.labels()} closes that gap:
+     * any label absent from the property result is seeded with an empty property list.
      *
-     * <p>A label that never appears in a single-label combination is a structural subtype
-     * tag (e.g. {@code :PressRelease}, {@code :Admin}) and is auto-classified as
-     * {@link LabelRole#TAG} by the caller.
+     * <p>The {@code mandatory} flag from the procedure is only trustworthy when
+     * {@code size(nodeLabels) == 1}; for multi-label combinations it describes the combination,
+     * not the individual label.
      */
     private LabelSchema collectLabelInformation(Session session) {
+
+        var allLabelNames = session.executeRead(tx -> tx.run("""
+                        CALL db.labels() YIELD label RETURN label ORDER BY label
+                        """).list()).stream()
+                .map(r -> r.get("label").asString())
+                .toList();
 
         var rawByLabel = session.executeRead(tx -> tx.run("""
                         CALL db.schema.nodeTypeProperties()
@@ -198,6 +219,12 @@ public class SchemaCollector {
                         LinkedHashMap::new,
                         Collectors.mapping(r -> toRawPropertyRow(r, r.get("labelCount").asInt()), Collectors.toList())
                 ));
+
+        // Labels known to the token store but absent from the property procedure have no
+        // unique properties — seed them so they are not silently dropped from the result.
+        for (var label : allLabelNames) {
+            rawByLabel.putIfAbsent(label, List.of());
+        }
 
         var properties = new LinkedHashMap<String, List<PropertyInfo>>();
         var appearsAlone = new HashSet<String>();
@@ -248,7 +275,9 @@ public class SchemaCollector {
         var singleMandatory = new HashMap<String, Boolean>();
 
         for (var row : rows) {
-            if (row.propertyName().isBlank()) continue;
+            if (row.propertyName().isBlank()) {
+                continue;
+            }
             types.computeIfAbsent(row.propertyName(), k -> new LinkedHashSet<>())
                     .addAll(row.types());
             if (row.labelCount() == 1) {
@@ -268,179 +297,259 @@ public class SchemaCollector {
     }
 
     /**
-     * Collects relationship type properties via db.schema.relTypeProperties(), with the same
-     * per-(type, property) deduplication applied to label properties.
+     * Collects relationship type metadata in two phases to avoid the global
+     * {@code db.schema.relTypeProperties()} scan, which is prohibitively slow on large schemas.
      *
-     * <p>Connectivity and counts come from actual graph data rather than db.schema.visualization(),
-     * which can return stale or over-approximate results. Two code paths are used:
-     * <ul>
-     *   <li>Per-type queries (default): one MATCH per type, accurate and targeted.</li>
-     *   <li>Per-group scans: one MATCH per detected parameterised group, used when the number of
-     *       individual types would make per-type round trips impractical. Non-parameterised types
-     *       still use per-type queries.</li>
-     * </ul>
+     * <h3>Phase 1 — Name discovery</h3>
+     * {@code CALL db.relationshipTypes()} returns all type names from the token registry in
+     * milliseconds, regardless of data volume. Group detection runs on the name list alone.
+     *
+     * <h3>Phase 2a — Non-parameterised types</h3>
+     * Each plain type is scanned individually: one query for count + connectivity, one for
+     * property schema from a bounded sample.
+     *
+     * <h3>Phase 2b — Parameterised groups</h3>
+     * Each group is sampled via a small set of representative member types that covers all
+     * variable slots with low cardinality (<10 distinct values).
      */
     private List<RelationshipTypeInfo> collectRelationshipInformation(Session session, int groupThreshold) {
-        log.info("Collecting ovrview of relationships and their property types...");
-        var rawByType = session.executeRead(tx -> tx.run("""
-                        CALL db.schema.relTypeProperties()
-                        YIELD relType, propertyName, propertyTypes, mandatory
-                        RETURN relType, propertyName, propertyTypes, mandatory
-                        ORDER BY relType, propertyName
+        log.info("Collecting relationship types...");
+
+        var allTypeNames = session.executeRead(tx -> tx.run("""
+                        CALL db.relationshipTypes()
+                        YIELD relationshipType
+                        RETURN relationshipType
+                        ORDER BY relationshipType
                         """).list()).stream()
-                .collect(Collectors.groupingBy(
-                        r -> cleanRelType(r.get("relType").asString()),
-                        LinkedHashMap::new,
-                        // rel types are single-valued so every row is authoritative for mandatory — labelCount=1
-                        Collectors.mapping(r -> toRawPropertyRow(r, 1), Collectors.toList())
-                ));
+                .map(r -> r.get("relationshipType").asString())
+                .toList();
 
-        log.info("found {} distinct relationship types", rawByType.size());
+        log.info("found {} distinct relationship types", allTypeNames.size());
 
-        var propsByType = new LinkedHashMap<String, List<PropertyInfo>>();
-        rawByType.forEach((relType, rows) ->
-                propsByType.put(relType, rows.stream()
-                        .filter(r -> !r.propertyName().isBlank())
-                        .map(r -> new PropertyInfo(r.propertyName(), r.types().stream().sorted().toList(), !r.mandatory()))
-                        .toList()));
+        var grouper = new RelTypeGrouper(allTypeNames, groupThreshold);
 
-        var relTypeGrouper = new RelTypeGrouper();
-        var groupSizes = relTypeGrouper.detectedGroupSizes(propsByType.keySet(), groupThreshold);
+        var result = new ArrayList<RelationshipTypeInfo>();
 
-        List<RelationshipTypeInfo> result;
-        if (groupSizes.isEmpty()) {
-            log.info("Relationship strategy: per-type queries ({} types)", propsByType.size());
-            var stats = collectRelationshipStatsPerType(session, propsByType.keySet());
-            result = propsByType.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .map(e -> new RelationshipTypeInfo(
-                            e.getKey(),
-                            stats.counts().getOrDefault(e.getKey(), 0L),
-                            stats.connections().getOrDefault(e.getKey(), List.of()),
-                            e.getValue()
-                    ))
-                    .toList();
+        if (grouper.getGroups().isEmpty()) {
+            log.info("Relationship strategy: per-type queries ({} types)", allTypeNames.size());
+            result = collectPlainTypes(session, allTypeNames);
         } else {
-            var totalVariants = groupSizes.values().stream().mapToInt(Integer::intValue).sum();
-            log.info("Relationship strategy: per-group scan ({} parameterised groups, {} total variants)",
-                    groupSizes.size(), totalVariants);
-            groupSizes.forEach((base, size) ->
-                    log.info("  Parameterised group: {} ({} variants)", base, size));
-
-            var grouped = new ArrayList<>(
-                    collectGroupedRelationshipTypes(session, groupSizes, propsByType, relTypeGrouper));
-
-            var ungroupedNames = propsByType.keySet().stream()
-                    .filter(name -> groupSizes.keySet().stream()
-                            .noneMatch(base -> name.startsWith(base + "_")))
-                    .collect(Collectors.toSet());
-
-            if (!ungroupedNames.isEmpty()) {
-                log.info("Collecting stats for {} non-parameterised types via per-type queries",
-                        ungroupedNames.size());
-                var ungroupedStats = collectRelationshipStatsPerType(session, ungroupedNames);
-                ungroupedNames.stream()
-                        .sorted()
-                        .forEach(name -> grouped.add(new RelationshipTypeInfo(
-                                name,
-                                ungroupedStats.counts().getOrDefault(name, 0L),
-                                ungroupedStats.connections().getOrDefault(name, List.of()),
-                                propsByType.get(name))));
-            }
-
-            result = grouped;
+            result = collectDynamicTypes(session, grouper);
         }
 
-        log.info("done collecting, found {} relationship types", result.size());
+        result.sort(Comparator.comparing(RelationshipTypeInfo::getName));
+        log.info("done collecting, found {} relationship type entries", result.size());
+        return result;
+    }
+
+    private ArrayList<RelationshipTypeInfo> collectDynamicTypes(Session session, RelTypeGrouper grouper) {
+
+        var groups = grouper.getGroups();
+        log.info("Relationship strategy: representative sampling ({} parameterised groups, {} total variants)",
+                groups.size(), groups.values().stream().mapToInt(List::size).sum());
+        groups.forEach((base, members) ->
+                log.info("  Group: {} ({} variants)", base, members.size()));
+
+        var result = new ArrayList<RelationshipTypeInfo>();
+        if (!grouper.getUngroupedNames().isEmpty()) {
+            log.info("Collecting {} non-parameterised types...", grouper.getUngroupedNames().size());
+            result = collectPlainTypes(session, grouper.getUngroupedNames());
+        }
+
+        int i = 0;
+        for (var entry : groups.entrySet()) {
+            log.info("Collecting group {} of {}: '{}' ({} variants)",
+                    ++i, groups.size(), entry.getKey(), entry.getValue().size());
+            try {
+                var grouped = collectGroupedRelType(session, entry.getKey(), entry.getValue());
+                // Trailing _ marks this as a parameterised group, preventing name collision
+                // with any plain rel type that shares the same base (e.g. FOO_BASE and FOO_BASE_*)
+                result.add(new RelationshipTypeInfo(
+                        grouped.getName() + "_",
+                        grouped.getCount(),
+                        grouped.getConnections(),
+                        grouped.getProperties(),
+                        grouped.getTypeParameters(),
+                        grouped.getInstances()));
+            } catch (Exception e) {
+                log.warn("Could not collect group '{}': {}", entry.getKey(), e.getMessage());
+            }
+        }
         return result;
     }
 
     /**
-     * Collects per-type relationship counts and connectivity by running one MATCH query per type.
-     * Each query returns the distinct (startLabelSet, endLabelSet) combinations with their counts,
-     * preserving multi-label node groupings rather than flattening to individual label pairs.
+     * Collects individual non-parameterised types into {@code result}, logging progress every
+     * 10 types so the user can see activity during a potentially long loop.
      */
-    private RelationshipTypeStats collectRelationshipStatsPerType(Session session, Set<String> relationshipTypes) {
-        var counts = new HashMap<String, Long>();
-        var connections = new HashMap<String, List<Connection>>();
-        for (var relationshipType : relationshipTypes) {
+    private ArrayList<RelationshipTypeInfo> collectPlainTypes(Session session, List<String> typeNames) {
+        var result = new ArrayList<RelationshipTypeInfo>();
+        int logInterval = Math.max(1, typeNames.size() / 10);
+        for (int i = 0; i < typeNames.size(); i++) {
+            if (i % logInterval == 0) {
+                log.info("  done {} of {}", i + 1, typeNames.size());
+            }
             try {
-                var escaped = relationshipType.replace("`", "``");
-                var rows = session.executeRead(tx -> tx.run(
-                        "MATCH (start)-[:`" + escaped + "`]->(end) " +
-                                "RETURN labels(start) AS startLabels, labels(end) AS endLabels, count(*) AS cnt"
-                ).list());
-                var connectionList = buildConnectionList(rows);
-                connections.put(relationshipType, connectionList);
-                counts.put(relationshipType, connectionList.stream().mapToLong(Connection::count).sum());
+                result.add(collectSingleRelType(session, typeNames.get(i)));
             } catch (Exception e) {
-                log.warn("Could not collect stats for relationship type {}: {}", relationshipType, e.getMessage());
+                log.warn("Could not collect stats for relationship type {}: {}",
+                        typeNames.get(i), e.getMessage());
             }
         }
-        log.info("Per-type stats complete: {} types", counts.size());
-        return new RelationshipTypeStats(counts, connections);
+        return result;
     }
 
     /**
-     * Collects relationship data for parameterised groups by running one full-graph scan per
-     * group, filtered by the group's underscore-delimited prefix. A single scan per group
-     * bounds the server-side EagerAggregation to the connection patterns of that group
-     * (typically a handful of rows) rather than aggregating across all relationship types at
-     * once, which would require memory proportional to the entire type × connection-pattern
-     * cardinality.
+     * Collects full metadata for a single non-parameterised relationship type.
+     * Count and connectivity come from an exact MATCH; property schema is sampled
+     * from up to 1000 relationships using {@code valueType()} for type inference.
+     *
+     * <p>{@code nullable} is exact when the total count fits within the 1000-row sample;
+     * otherwise it conservatively defaults to {@code true}.
      */
-    private List<RelationshipTypeInfo> collectGroupedRelationshipTypes(
-            Session session,
-            Map<String, Integer> groupSizes,
-            Map<String, List<PropertyInfo>> propsByType,
-            RelTypeGrouper relTypeGrouper) {
+    private RelationshipTypeInfo collectSingleRelType(Session session, String typeName) {
 
-        var result = new ArrayList<RelationshipTypeInfo>();
-        for (var entry : groupSizes.entrySet()) {
-            var base = entry.getKey();
-            var variantCount = entry.getValue();
-            var prefix = base + "_";
-            log.info("Scanning parameterised group '{}_*' ({} variants)...", base, variantCount);
-            var startTime = System.currentTimeMillis();
-            try {
-                var rows = session.executeRead(tx -> tx.run("""
-                        MATCH (start)-[r]->(end)
-                        WHERE type(r) STARTS WITH $prefix
-                        RETURN labels(start) AS startLabels,
-                               labels(end) AS endLabels,
-                               count(*) AS cnt
-                        """, Map.of("prefix", prefix)).list());
+        var escaped = typeName.replace("`", "``");
 
-                var connections = buildConnectionList(rows);
-                var totalCount = connections.stream().mapToLong(Connection::count).sum();
+        var rows = session.executeRead(tx -> tx.run(
+                "MATCH (s)-[r:`" + escaped + "`]->(e) " +
+                        "RETURN labels(s) AS startLabels, labels(e) AS endLabels, count(*) AS cnt"
+        ).list());
+        var connections = buildConnectionList(rows);
+        var totalCount = connections.stream().mapToLong(Connection::count).sum();
 
-                var memberNames = propsByType.keySet().stream()
-                        .filter(name -> name.startsWith(prefix))
-                        .sorted()
-                        .toList();
-                if (memberNames.isEmpty()) {
-                    log.warn("Group '{}_*' has no member types in schema properties — skipping", base);
-                    continue;
+        var propRows = session.executeRead(tx -> tx.run(
+                "MATCH ()-[r:`" + escaped + "`]->() WITH r LIMIT 1000 " +
+                        "UNWIND keys(r) AS propKey " +
+                        "RETURN propKey, collect(DISTINCT valueType(r[propKey])) AS types, count(*) AS seen"
+        ).list());
+
+        var properties = propRows.stream()
+                .filter(r -> !r.get("propKey").asString().isBlank())
+                .map(r -> {
+                    var propName = r.get("propKey").asString();
+                    var types = r.get("types").asList(Value::asString).stream().sorted().toList();
+                    var seen = r.get("seen").asLong();
+                    var nullable = totalCount > 1000 || seen < totalCount;
+                    return new PropertyInfo(propName, types, nullable);
+                })
+                .toList();
+
+        return new RelationshipTypeInfo(typeName, totalCount, connections, properties);
+    }
+
+    /**
+     * Selects representative type names for schema sampling of a parameterised group.
+     *
+     * <p>For every variable slot with fewer than 10 distinct values, one representative is
+     * selected per distinct value at that slot — these are the semantically meaningful
+     * distinctions that may carry different properties or connectivity. If no slot qualifies,
+     * the first three alphabetically are used.
+     *
+     * @param actualBase  stable prefix, e.g. {@code COMP_HAS_COSTS_FOR_PROD}
+     * @param memberNames sorted list of all member type names in this segment-count bucket
+     */
+    private Collection<String> selectGroupRepresentatives(String actualBase, List<String> memberNames) {
+
+        int baseSegCount = actualBase.split("_").length;
+        int varCount = memberNames.isEmpty() ? 0 : memberNames.getFirst().split("_").length - baseSegCount;
+
+        var representatives = new LinkedHashSet<String>();
+
+        for (int slot = 0; slot < varCount; slot++) {
+            final int segIdx = baseSegCount + slot;
+            var distinctValues = memberNames.stream()
+                    .filter(n -> n.split("_").length > segIdx)
+                    .map(n -> n.split("_")[segIdx])
+                    .distinct()
+                    .toList();
+
+            if (distinctValues.size() < 10) {
+                for (var value : distinctValues) {
+                    memberNames.stream()
+                            .filter(n -> n.split("_").length > segIdx
+                                    && n.split("_")[segIdx].equals(value))
+                            .findFirst()
+                            .ifPresent(representatives::add);
                 }
+            }
+        }
 
-                var mergedPropsMap = new LinkedHashMap<String, PropertyInfo>();
-                for (var memberName : memberNames) {
-                    for (var p : propsByType.getOrDefault(memberName, List.of())) {
-                        mergedPropsMap.merge(p.name(), p,
-                                (existing, incoming) -> incoming.nullable() ? existing : existing.withNullable(false));
+        if (representatives.isEmpty()) {
+            memberNames.stream().limit(3).forEach(representatives::add);
+        }
+
+        return representatives;
+    }
+
+    /**
+     * Collects schema for a parameterised group by sampling representative members.
+     * Count is the number of distinct variants, not a relationship count —  the total
+     * relationship count for thousands of variants would require an expensive full scan.
+     * Property {@code nullable} defaults to {@code true}; sampling cannot give a reliable answer.
+     *
+     * @param actualBase  stable base, e.g. {@code COMP_HAS_COSTS_FOR_PROD}
+     * @param memberNames all member type names for this segment-count bucket
+     */
+    private RelationshipTypeInfo collectGroupedRelType(
+            Session session,
+            String actualBase, List<String> memberNames) {
+
+        var representatives = selectGroupRepresentatives(actualBase, memberNames);
+        log.info("Sampling {} representative(s) for group '{}'", representatives.size(), actualBase);
+
+        var seenConnectionKeys = new LinkedHashSet<String>();
+        var mergedConnections = new ArrayList<Connection>();
+        var mergedProps = new LinkedHashMap<String, PropertyInfo>();
+
+        for (var representative : representatives) {
+            var escaped = representative.replace("`", "``");
+            try {
+                var connRows = session.executeRead(tx -> tx.run(
+                        "MATCH (s)-[r:`" + escaped + "`]->(e) " +
+                                "RETURN DISTINCT labels(s) AS startLabels, labels(e) AS endLabels"
+                ).list());
+                for (var row : connRows) {
+                    var startLabels = row.get("startLabels").asList(Value::asString);
+                    var endLabels = row.get("endLabels").asList(Value::asString);
+                    var key = startLabels + "->" + endLabels;
+                    if (seenConnectionKeys.add(key)) {
+                        mergedConnections.add(new Connection(startLabels, endLabels, 0L));
                     }
                 }
 
-                result.add(relTypeGrouper.buildGrouped(
-                        base, memberNames, new ArrayList<>(mergedPropsMap.values()), totalCount, connections));
-
-                log.info("Group '{}_*' complete: {} instances, {} connection patterns, {} ms",
-                        base, memberNames.size(), connections.size(), System.currentTimeMillis() - startTime);
+                var propRows = session.executeRead(tx -> tx.run(
+                        "MATCH ()-[r:`" + escaped + "`]->() WITH r LIMIT 1000 " +
+                                "UNWIND keys(r) AS propKey " +
+                                "RETURN propKey, collect(DISTINCT valueType(r[propKey])) AS types"
+                ).list());
+                for (var row : propRows) {
+                    var propName = row.get("propKey").asString();
+                    if (propName.isBlank()) {
+                        continue;
+                    }
+                    var types = row.get("types").asList(Value::asString).stream().sorted().toList();
+                    mergedProps.merge(propName, new PropertyInfo(propName, types, true),
+                            (existing, incoming) -> {
+                                var merged = new ArrayList<>(existing.types());
+                                merged.addAll(incoming.types());
+                                return new PropertyInfo(propName, merged.stream().distinct().sorted().toList(), true);
+                            });
+                }
             } catch (Exception e) {
-                log.warn("Could not scan group '{}_*': {}", base, e.getMessage());
+                log.warn("Could not sample representative '{}' for group '{}': {}",
+                        representative, actualBase, e.getMessage());
             }
         }
-        return result;
+
+        var sortedConnections = mergedConnections.stream()
+                .sorted(Comparator.comparing((Connection c) -> c.startLabels().toString())
+                        .thenComparing(c -> c.endLabels().toString()))
+                .toList();
+
+        return RelTypeGrouper.buildGrouped(
+                actualBase, memberNames, List.copyOf(mergedProps.values()),
+                memberNames.size(), sortedConnections);
     }
 
     /**
@@ -525,19 +634,14 @@ public class SchemaCollector {
     }
 
     /**
-     * Strips the Neo4j internal type decoration (e.g. {@code :`TYPE_NAME`} → {@code TYPE_NAME}).
-     */
-    private String cleanRelType(String raw) {
-        return raw.replaceAll("[:`]", "");
-    }
-
-    /**
      * Converts a driver {@link Value} to a sorted String list.
      * Returns an empty list for NULL — SHOW INDEXES returns NULL for {@code labelsOrTypes}
      * and {@code properties} on LOOKUP-type indexes.
      */
     private List<String> asSortedStringList(Value value) {
-        if (value.isNull()) return List.of();
+        if (value.isNull()) {
+            return List.of();
+        }
         return value.asList(Value::asString).stream().sorted().toList();
     }
 
@@ -547,9 +651,13 @@ public class SchemaCollector {
      * and for LOOKUP indexes (null options).
      */
     private String formatIndexConfig(Value options) {
-        if (options.isNull()) return "";
+        if (options.isNull()) {
+            return "";
+        }
         var config = options.get("indexConfig");
-        if (config.isNull()) return "";
+        if (config.isNull()) {
+            return "";
+        }
         return config.asMap().entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .sorted()

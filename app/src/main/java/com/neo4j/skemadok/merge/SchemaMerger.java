@@ -1,6 +1,7 @@
 package com.neo4j.skemadok.merge;
 
 import com.neo4j.skemadok.model.*;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -93,11 +94,21 @@ public class SchemaMerger {
      * Copies user-added annotations from old to newLabel (which has fresh structural data).
      */
     private void preserveLabelAnnotations(LabelInfo old, LabelInfo newLabel) {
-        if (isPresent(old.getDescription()))    newLabel.setDescription(old.getDescription());
-        if (isPresent(old.getDataSource()))     newLabel.setDataSource(old.getDataSource());
-        if (isPresent(old.getExtendsLabel()))   newLabel.setExtendsLabel(old.getExtendsLabel());
-        if (!old.getTaggedEntities().isEmpty())  newLabel.setTaggedEntities(new ArrayList<>(old.getTaggedEntities()));
-        if (isPresent(old.getColor()))          newLabel.setColor(old.getColor());
+        if (isPresent(old.getDescription())) {
+            newLabel.setDescription(old.getDescription());
+        }
+        if (isPresent(old.getDataSource())) {
+            newLabel.setDataSource(old.getDataSource());
+        }
+        if (isPresent(old.getExtendsLabel())) {
+            newLabel.setExtendsLabel(old.getExtendsLabel());
+        }
+        if (!old.getTaggedEntities().isEmpty()) {
+            newLabel.setTaggedEntities(new ArrayList<>(old.getTaggedEntities()));
+        }
+        if (isPresent(old.getColor())) {
+            newLabel.setColor(old.getColor());
+        }
         if (!old.getDisplayProperties().isEmpty()) {
             newLabel.setDisplayProperties(new ArrayList<>(old.getDisplayProperties()));
         }
@@ -105,8 +116,12 @@ public class SchemaMerger {
     }
 
     private void preserveRelAnnotations(RelationshipTypeInfo old, RelationshipTypeInfo newRel) {
-        if (isPresent(old.getDescription())) newRel.setDescription(old.getDescription());
-        if (isPresent(old.getDataSource()))  newRel.setDataSource(old.getDataSource());
+        if (isPresent(old.getDescription())) {
+            newRel.setDescription(old.getDescription());
+        }
+        if (isPresent(old.getDataSource())) {
+            newRel.setDataSource(old.getDataSource());
+        }
         if (!old.getDisplayProperties().isEmpty()) {
             newRel.setDisplayProperties(new ArrayList<>(old.getDisplayProperties()));
         }
@@ -123,13 +138,17 @@ public class SchemaMerger {
      * Matched by position; unmatched positions in the new entry are left as-is.
      */
     private void mergeTypeParameterAnnotations(List<TypeParameter> oldParams, List<TypeParameter> newParams) {
-        if (oldParams == null || newParams == null) return;
+        if (oldParams == null || newParams == null) {
+            return;
+        }
         Map<Integer, TypeParameter> oldByPosition = oldParams.stream()
                 .collect(Collectors.toMap(TypeParameter::position, p -> p));
         for (int i = 0; i < newParams.size(); i++) {
             TypeParameter newParam = newParams.get(i);
             TypeParameter old = oldByPosition.get(newParam.position());
-            if (old == null) continue;
+            if (old == null) {
+                continue;
+            }
             var updated = newParam;
             // Preserve user-assigned name when it differs from the positional default
             String defaultName = "v" + (newParam.position() + 1);
@@ -157,7 +176,7 @@ public class SchemaMerger {
             PropertyInfo oldProp = oldByName.get(newProp.name());
             if (oldProp != null) {
                 var desc = isPresent(oldProp.description()) ? oldProp.description() : newProp.description();
-                var src  = isPresent(oldProp.dataSource())  ? oldProp.dataSource()  : newProp.dataSource();
+                var src = isPresent(oldProp.dataSource()) ? oldProp.dataSource() : newProp.dataSource();
                 if (!desc.equals(newProp.description()) || !src.equals(newProp.dataSource())) {
                     newProps.set(i, newProp.withAnnotations(desc, src));
                 }

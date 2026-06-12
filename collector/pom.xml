@@ -13,7 +13,7 @@
     <artifactId>skemadok-collector</artifactId>
     <packaging>jar</packaging>
     <name>SkemaDok Collector</name>
-    <description>Thin executable for collecting and merging schema from Neo4j — no web server, no Spring</description>
+    <description>Thin executable entry point — CollectorApplication only. Logic lives in core.</description>
 
     <dependencies>
         <dependency>

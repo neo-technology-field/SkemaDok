@@ -37,7 +37,7 @@ public class FreemarkerRenderer {
      *
      * @throws IllegalStateException if Freemarker fails to load or process the template
      */
-    String render(String templatePath, Map<String, Object> model) {
+    public String render(String templatePath, Map<String, Object> model) {
         try {
             Template template = config.getTemplate(templatePath);
             var writer = new StringWriter();

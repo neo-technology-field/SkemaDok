@@ -4,7 +4,9 @@
  */
 export function relDisplayName(rel) {
   if (!rel?.typeParameters?.length) return rel?.name ?? ''
-  return rel.name + rel.typeParameters.map(p => `_{${p.name ?? 'v' + (p.position + 1)}}`).join('')
+  // Group names carry a trailing _ to prevent collision with plain types; strip it for display
+  const base = rel.name.endsWith('_') ? rel.name.slice(0, -1) : rel.name
+  return base + rel.typeParameters.map(p => `_{${p.name ?? 'v' + (p.position + 1)}}`).join('')
 }
 
 /**

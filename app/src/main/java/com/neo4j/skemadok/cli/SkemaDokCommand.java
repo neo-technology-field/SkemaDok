@@ -13,7 +13,7 @@ import java.util.concurrent.Callable;
         version = "0.1.0",
         description = "Neo4j schema analyser and documentation builder.",
         mixinStandardHelpOptions = true,
-        subcommands = {CollectCommand.class, UiCommand.class, GenerateCommand.class, MergeCommand.class}
+        subcommands = {CollectCommand.class, UiCommand.class, GenerateCommand.class, MergeCommand.class, SeedCommand.class, SeedBulkCommand.class}
 )
 public class SkemaDokCommand implements Callable<Integer> {
 
@@ -21,7 +21,7 @@ public class SkemaDokCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        log.warn("Specify a subcommand: collect, ui, generate, merge");
+        log.warn("Specify a subcommand: collect, ui, generate, merge, seed");
         log.warn("Run 'skemadok --help' for usage.");
         return 1;
     }
